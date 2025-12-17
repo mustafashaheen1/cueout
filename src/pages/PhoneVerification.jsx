@@ -1,28 +1,120 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../components/utils';
-import { ChevronLeft, Phone } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ChevronLeft, Phone, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../components/AuthContext';
+import { sendVerificationCall, verifyCode, resendVerificationCode } from '../api/verification';
 
 export default function PhoneVerification() {
   const [step, setStep] = useState('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [countryCode, setCountryCode] = useState('+1');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleSendCode = (e) => {
+  const handleSendCode = async (e) => {
     e.preventDefault();
-    setStep('code');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (!user) {
+        throw new Error('You must be logged in to verify your phone number');
+      }
+
+      // Send verification call via Luron API
+      const response = await sendVerificationCall({
+        userId: user.id,
+        phoneNumber: phoneNumber,
+        countryCode: countryCode
+      });
+
+      if (response.success) {
+        setStep('code');
+        // Show code in development for testing
+        if (response.code) {
+          console.log('🔐 Development Mode - Verification code:', response.code);
+        }
+      }
+    } catch (err) {
+      console.error('Error sending code:', err);
+      setError(err.message || 'Failed to send verification call');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVerifyCode = (e) => {
+  const handleVerifyCode = async (e) => {
     e.preventDefault();
-    navigate(createPageUrl('Home'));
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (!user) {
+        throw new Error('You must be logged in to verify your phone number');
+      }
+
+      // Join the code array into a single string
+      const codeString = code.join('');
+
+      if (codeString.length !== 6) {
+        throw new Error('Please enter the complete 6-digit code');
+      }
+
+      // Verify the code
+      const response = await verifyCode({
+        userId: user.id,
+        phoneNumber: phoneNumber,
+        code: codeString
+      });
+
+      if (response.success) {
+        // Navigate to home on successful verification
+        navigate(createPageUrl('Home'));
+      }
+    } catch (err) {
+      console.error('Error verifying code:', err);
+      setError(err.message || 'Failed to verify code');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResendCode = () => {
-    alert('New code sent!');
+  const handleResendCode = async () => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (!user) {
+        throw new Error('You must be logged in');
+      }
+
+      const response = await resendVerificationCode({
+        userId: user.id,
+        phoneNumber: phoneNumber,
+        countryCode: countryCode
+      });
+
+      if (response.success) {
+        // Clear existing code inputs
+        setCode(['', '', '', '', '', '']);
+        // Show code in development for testing
+        if (response.code) {
+          console.log('🔐 Development Mode - New verification code:', response.code);
+        }
+        // Show success feedback (you could add a success toast here)
+        alert('New verification call scheduled!');
+      }
+    } catch (err) {
+      console.error('Error resending code:', err);
+      setError(err.message || 'Failed to resend code');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCodeChange = (index, value) => {
@@ -44,7 +136,7 @@ export default function PhoneVerification() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/20 via-black to-black" />
       
       <div className="relative pt-4 px-6">
@@ -71,7 +163,7 @@ export default function PhoneVerification() {
               Add your phone number
             </h1>
             <p className="text-zinc-400 text-center mb-12">
-              This is where GoCall will reach you.
+              We'll call you with a verification code
             </p>
 
             <form onSubmit={handleSendCode} className="space-y-6">
@@ -96,17 +188,30 @@ export default function PhoneVerification() {
                 />
               </div>
 
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400">{error}</p>
+                </motion.div>
+              )}
+
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-red-500/50 disabled:to-red-600/50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95"
               >
-                Send Code
+                {isLoading ? 'Calling...' : 'Call Me with Code'}
               </button>
             </form>
 
             <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
               <p className="text-sm text-zinc-400 text-center leading-relaxed">
-                GoCall will only call/text you for scheduled calls. You're always in control.
+                <strong className="text-white">🎯 On-brand verification!</strong><br />
+                You'll receive a quick AI call that reads your 6-digit verification code. QueOut will only contact you for scheduled calls.
               </p>
             </div>
           </motion.div>
@@ -120,10 +225,14 @@ export default function PhoneVerification() {
               Verify your number
             </h1>
             <p className="text-zinc-400 text-center mb-12">
-              We just texted a 6-digit code to
+              You should receive a call in a few moments at
               <br />
               <span className="text-white font-medium">
                 {countryCode} {phoneNumber}
+              </span>
+              <br />
+              <span className="text-xs text-zinc-500 mt-2 block">
+                Listen for your 6-digit code
               </span>
             </p>
 
@@ -143,21 +252,34 @@ export default function PhoneVerification() {
                 ))}
               </div>
 
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400">{error}</p>
+                </motion.div>
+              )}
+
               <div className="text-center">
                 <button
                   type="button"
                   onClick={handleResendCode}
-                  className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                  disabled={isLoading}
+                  className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Resend code
+                  Didn't get the call? Request new code
                 </button>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-red-500/50 disabled:to-red-600/50 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95"
               >
-                Verify
+                {isLoading ? 'Verifying...' : 'Verify'}
               </button>
             </form>
           </motion.div>

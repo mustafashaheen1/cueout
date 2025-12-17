@@ -19,17 +19,17 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
         className="relative group">
 
         <motion.div
-          whileTap={{ scale: 0.95 }} 
-          className={`bg-[#121212] p-3 rounded-2xl w-20 transition-all border-2 ${
-            selected 
-              ? 'border-red-500 shadow-lg shadow-red-500/20' 
+          whileTap={{ scale: 0.95 }}
+          className={`bg-[#121212] p-3 rounded-2xl w-24 transition-all border-2 ${
+            selected
+              ? 'border-red-500 shadow-lg shadow-red-500/20'
               : 'border-zinc-700 hover:border-zinc-600'
           }`}
         >
           <div className={`w-14 h-14 mx-auto mb-2 rounded-full ${persona.color} flex items-center justify-center text-2xl`}>
             {persona.icon}
           </div>
-          <p className="text-xs font-semibold text-center text-white truncate">{persona.name}</p>
+          <p className="text-[10px] font-semibold text-center text-white leading-tight">{persona.name}</p>
         </motion.div>
 
         {selected &&

@@ -85,7 +85,7 @@ export default function PersonaSettings() {
   };
 
   return (
-    <div className="min-h-full bg-black pb-24">
+    <div className="min-h-full bg-black pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/20 via-black to-black pointer-events-none" />
       
       <div className="relative">

@@ -73,7 +73,7 @@ export default function Paywall() {
   };
 
   return (
-    <div className="min-h-full bg-black px-6 py-6 overflow-y-auto">
+    <div className="min-h-full bg-black px-6 pt-safe pb-safe overflow-y-auto">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-red-600/20 via-purple-600/10 to-transparent blur-3xl animate-pulse" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-500/20 blur-3xl rounded-full" />

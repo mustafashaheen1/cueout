@@ -125,7 +125,7 @@ export default function Onboarding() {
   const isLastSlide = currentSlide === slides.length - 1;
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/20 via-black to-black" />
       
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-12">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Sparkles, Clock, X, Mail, MessageSquare, Zap, ChevronRight, ChevronDown, Settings, Plus, LogOut } from 'lucide-react';
+import { Phone, Sparkles, Clock, X, Mail, MessageSquare, Zap, ChevronRight, ChevronDown, Settings, Plus, LogOut, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../components/utils';
@@ -12,6 +12,7 @@ import TimeChip from '../components/TimeChip';
 import UpcomingCallBanner from '../components/UpcomingCallBanner';
 import ContactMethodSelector from '../components/ContactMethodSelector';
 import CallerIDSelector from '../components/CallerIDSelector';
+import { scheduleCall as scheduleCallAPI } from '../api/luronApi';
 
 // Personas are now managed in PersonaContext
 
@@ -21,7 +22,7 @@ export default function Home() {
   const location = useLocation();
   const topRef = useRef(null);
   const { getPersonaConfig, personas, addPersona } = usePersona();
-  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory } = useApp();
+  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory, userId } = useApp();
 
   const [selectedTime, setSelectedTime] = useState('3min');
   const [selectedPersona, setSelectedPersona] = useState('manager');
@@ -38,6 +39,10 @@ export default function Home() {
   const [voiceCategory, setVoiceCategory] = useState('realistic');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
+
+  // Luron API Integration
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleError, setScheduleError] = useState(null);
 
   const tips = [
     "Customize caller names in Account settings",
@@ -133,18 +138,22 @@ export default function Home() {
     navigate(createPageUrl('PersonaSettings'), { state: { persona: newPersona } });
   };
 
-  const handleSchedule = () => {
+  const handleSchedule = async () => {
     const persona = personas.find((p) => p.id === selectedPersona);
+    const personaConfig = getPersonaConfig(selectedPersona);
+
+    // Clear any previous errors
+    setScheduleError(null);
 
     // Calculate duration in ms
     let durationMs = 0;
-    if (selectedTime === '3min') durationMs = 3 * 60 * 1000;else
-    if (selectedTime === '5min') durationMs = 5 * 60 * 1000;else
-    if (selectedTime === 'now') durationMs = 5000; // 5 seconds for "now"
+    if (selectedTime === '3min') durationMs = 3 * 60 * 1000;
+    else if (selectedTime === '5min') durationMs = 5 * 60 * 1000;
+    else if (selectedTime === 'now') durationMs = 5000; // 5 seconds for "now"
     else durationMs = 10 * 60 * 1000; // default/custom logic placeholder
 
     if (editingCallId) {
-      // Update existing call via Context
+      // Update existing call via Context (keep local-only functionality for editing)
       const existingCall = upcomingCalls.find((c) => c.id === editingCallId);
       if (existingCall) {
         let newDueTimestamp = existingCall.dueTimestamp;
@@ -170,32 +179,64 @@ export default function Home() {
         });
       }
       setEditingCallId(null);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+      topRef.current?.scrollIntoView({ behavior: 'smooth' });
     } else {
-      // Create new call via Context
-      const newCall = {
-        id: Date.now().toString(),
-        isNew: true,
-        persona: persona.name,
-        icon: persona.icon,
-        dueTimestamp: Date.now() + durationMs,
-        isEditing: false,
-        originalState: {
-          selectedPersona,
-          selectedTime,
-          selectedVoice,
-          contactMethods,
-          note,
-          selectedCallerID,
-          voiceCategory,
-          orderedPersonas
-        }
-      };
-      addUpcomingCall(newCall);
-    }
+      // Create new call via Luron API
+      try {
+        setIsScheduling(true);
 
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-    topRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Call Luron API to schedule the call
+        const response = await scheduleCallAPI({
+          userId,
+          contactMethods,
+          selectedTime,
+          customDate: null, // TODO: Add custom date support later
+          selectedPersona,
+          note,
+          selectedVoice,
+          selectedCallerID,
+          personaConfig
+        });
+
+        if (response.success) {
+          // Create local upcoming call with API call_id
+          const newCall = {
+            id: Date.now().toString(),
+            call_id: response.call_id, // Store API call ID
+            isNew: true,
+            persona: persona.name,
+            icon: persona.icon,
+            dueTimestamp: Date.now() + durationMs,
+            isEditing: false,
+            originalState: {
+              selectedPersona,
+              selectedTime,
+              selectedVoice,
+              contactMethods,
+              note,
+              selectedCallerID,
+              voiceCategory,
+              orderedPersonas
+            }
+          };
+          addUpcomingCall(newCall);
+
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 3000);
+          topRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+      } catch (error) {
+        console.error('Error scheduling call:', error);
+        setScheduleError(error.message || 'Failed to schedule call. Please try again.');
+
+        // Auto-hide error after 5 seconds
+        setTimeout(() => setScheduleError(null), 5000);
+      } finally {
+        setIsScheduling(false);
+      }
+    }
   };
 
   const handleCancelCall = (callId) => {
@@ -250,10 +291,10 @@ export default function Home() {
   };
 
   return (
-    <div ref={topRef} className="min-h-full bg-black px-6 py-6">
+    <div ref={topRef} className="min-h-full bg-black px-6 pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/10 via-black to-black pointer-events-none" />
-      
-      <div className="relative w-full max-w-lg mx-auto">
+
+      <div className="relative w-full max-w-lg mx-auto pt-12">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -492,14 +533,39 @@ export default function Home() {
         </motion.div>
 
         <div className="space-y-2 mb-4">
+          {scheduleError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-400 mb-1">Scheduling Failed</p>
+                <p className="text-xs text-red-300/80">{scheduleError}</p>
+              </div>
+            </motion.div>
+          )}
+
           <motion.button
             onClick={handleSchedule}
-            whileTap={{ scale: 0.97 }}
-            className="relative w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold text-lg py-5 rounded-full shadow-2xl shadow-red-500/50 flex items-center justify-center gap-2 transition-all duration-200 group overflow-hidden">
+            disabled={isScheduling}
+            whileTap={{ scale: isScheduling ? 1 : 0.97 }}
+            className="relative w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-red-500/50 disabled:to-red-600/50 disabled:cursor-not-allowed text-white font-bold text-lg py-5 rounded-full shadow-2xl shadow-red-500/50 flex items-center justify-center gap-2 transition-all duration-200 group overflow-hidden">
 
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-            <span className="relative z-10">{editingCallId ? 'Confirm Edit' : 'Schedule Escape'}</span>
-            <LogOut className="w-5 h-5 relative z-10" />
+            {isScheduling ? (
+              <>
+                <div className="relative z-10 w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="relative z-10">Scheduling...</span>
+              </>
+            ) : (
+              <>
+                <span className="relative z-10">{editingCallId ? 'Confirm Edit' : 'Schedule Escape'}</span>
+                <LogOut className="w-5 h-5 relative z-10" />
+              </>
+            )}
           </motion.button>
           <p className="text-center text-xs text-zinc-500">
             {editingCallId ?

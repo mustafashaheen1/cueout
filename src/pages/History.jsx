@@ -87,15 +87,30 @@ const mockHistory = [
 ];
 
 export default function History() {
-  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule } = useApp();
+  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, syncHistoryWithAPI, apiLoading } = useApp();
   const { personas } = usePersona();
   const [selectedCall, setSelectedCall] = useState(null);
   const [editingSchedule, setEditingSchedule] = useState(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     // Clear unread badge when entering history page
     clearUnreadHistory();
+
+    // Fetch real history from Luron API
+    const fetchHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        await syncHistoryWithAPI();
+      } catch (error) {
+        console.error('Error fetching history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
   }, []);
 
   const handleQuickCall = (option) => {
@@ -175,10 +190,10 @@ export default function History() {
   };
 
   return (
-    <div className="min-h-full bg-black px-6 py-6">
+    <div className="min-h-full bg-black px-6 pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/10 via-black to-black pointer-events-none" />
-      
-      <div className="relative w-full max-w-lg mx-auto">
+
+      <div className="relative w-full max-w-lg mx-auto pt-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">History</h1>
           <p className="text-zinc-400 text-sm">Reuse your favorite setups or see what you've used.</p>
@@ -294,7 +309,12 @@ export default function History() {
 
         {/* Call history list */}
         <div className="space-y-3">
-          {history.length === 0 ? (
+          {isLoadingHistory ? (
+            <div className="text-center py-10 text-zinc-500 text-sm">
+              <div className="w-8 h-8 border-2 border-zinc-700 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
+              <p>Loading history...</p>
+            </div>
+          ) : history.length === 0 ? (
             <div className="text-center py-10 text-zinc-500 text-sm">
               <p>No history yet.</p>
               <p>Schedule a call to see it here.</p>
@@ -303,12 +323,12 @@ export default function History() {
             history.map((call, index) => (
               <CallHistoryItem
                 key={call.id}
-                call={{ 
-                  ...call, 
+                call={{
+                  ...call,
                   scheduledTime: new Date(call.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  status: 'completed',
-                  duration: '0:30', // Placeholder
-                  personaName: call.persona 
+                  status: call.status || 'completed',
+                  duration: call.duration ? `${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')}` : '0:30',
+                  personaName: call.personaName || call.persona
                 }}
                 index={index}
                 onClick={() => setSelectedCall(call)}
@@ -360,11 +380,41 @@ export default function History() {
               <div className="space-y-4 mb-6">
                 <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-zinc-400">Duration</span>
-                  <span className="font-semibold text-white">{selectedCall.duration}</span>
+                  <span className="font-semibold text-white">
+                    {selectedCall.duration
+                      ? (typeof selectedCall.duration === 'number'
+                        ? `${Math.floor(selectedCall.duration / 60)}:${(selectedCall.duration % 60).toString().padStart(2, '0')}`
+                        : selectedCall.duration)
+                      : '0:30'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-zinc-800">
                   <span className="text-zinc-400">Scheduled</span>
-                  <span className="font-semibold text-white">{selectedCall.scheduledTime}</span>
+                  <span className="font-semibold text-white">
+                    {selectedCall.completedAt
+                      ? new Date(selectedCall.completedAt).toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : selectedCall.scheduledTime}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-3 border-b border-zinc-800">
+                  <span className="text-zinc-400">Status</span>
+                  <span className={`font-semibold ${
+                    selectedCall.status === 'completed' || selectedCall.status === 'answered'
+                      ? 'text-green-400'
+                      : selectedCall.status === 'missed'
+                      ? 'text-zinc-400'
+                      : 'text-yellow-400'
+                  }`}>
+                    {selectedCall.status === 'completed' ? 'Completed' :
+                     selectedCall.status === 'answered' ? 'Answered' :
+                     selectedCall.status === 'missed' ? 'Missed' :
+                     selectedCall.status || 'Unknown'}
+                  </span>
                 </div>
               </div>
 

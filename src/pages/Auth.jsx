@@ -1,26 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../components/utils';
-import { Mail, Lock, Apple } from 'lucide-react';
+import { Mail, Lock, Apple, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../components/AuthContext';
 
 export default function Auth() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn, signUp, signInWithApple, isAuthenticated } = useAuth();
 
-  const handleSubmit = (e) => {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(createPageUrl('Home'));
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    navigate(createPageUrl('PhoneVerification'));
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (mode === 'login') {
+        await signIn(email, password);
+      } else {
+        await signUp(email, password);
+      }
+      // Navigate to phone verification after successful auth
+      navigate(createPageUrl('PhoneVerification'));
+    } catch (err) {
+      console.error('Auth error:', err);
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAppleSignIn = () => {
-    navigate(createPageUrl('PhoneVerification'));
+  const handleAppleSignIn = async () => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await signInWithApple();
+      navigate(createPageUrl('PhoneVerification'));
+    } catch (err) {
+      console.error('Apple sign in error:', err);
+      setError(err.message || 'Failed to sign in with Apple');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6 pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/30 via-black to-black" />
       
       <div className="relative w-full max-w-lg mx-auto">
@@ -61,6 +99,17 @@ export default function Auth() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3"
+              >
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-400">{error}</p>
+              </motion.div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">
                 Email
@@ -74,6 +123,7 @@ export default function Auth() {
                   className="w-full bg-zinc-800/50 border border-zinc-700 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-zinc-500 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
                   placeholder="your@email.com"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -91,15 +141,23 @@ export default function Auth() {
                   className="w-full bg-zinc-800/50 border border-zinc-700 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-zinc-500 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
                   placeholder="••••••••"
                   required
+                  minLength={6}
+                  disabled={isLoading}
                 />
               </div>
+              {mode === 'signup' && (
+                <p className="text-xs text-zinc-500 mt-2">
+                  Password must be at least 6 characters
+                </p>
+              )}
             </div>
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95 mt-6"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-4 rounded-full shadow-lg shadow-red-500/30 transition-all duration-200 active:scale-95 mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Continue
+              {isLoading ? 'Loading...' : 'Continue'}
             </button>
           </form>
 
@@ -111,7 +169,8 @@ export default function Auth() {
 
           <button
             onClick={handleAppleSignIn}
-            className="w-full bg-white text-black font-semibold py-4 rounded-full flex items-center justify-center gap-3 hover:bg-zinc-100 transition-all duration-200 active:scale-95"
+            disabled={isLoading}
+            className="w-full bg-white text-black font-semibold py-4 rounded-full flex items-center justify-center gap-3 hover:bg-zinc-100 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Apple className="w-5 h-5 fill-current" />
             Continue with Apple

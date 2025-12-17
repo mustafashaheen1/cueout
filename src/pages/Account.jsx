@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../components/AppContext';
+import { useAuth } from '../components/AuthContext';
 import { createPageUrl } from '../components/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -37,8 +38,16 @@ export default function Account() {
   const [showCallerIDEditor, setShowCallerIDEditor] = useState(false);
   const navigate = useNavigate();
   const { callerIDs, updateCallerIDName } = useApp();
-  
+  const { user, signOut } = useAuth();
+
   const ringtones = ['Default', 'Classic', 'Modern', 'Gentle', 'Urgent'];
+
+  // Load user data from Supabase
+  useEffect(() => {
+    if (user) {
+      setEmail(user.email || 'john@example.com');
+    }
+  }, [user]);
 
   const handleUpgrade = () => {
     navigate(createPageUrl('Paywall'));
@@ -55,10 +64,10 @@ export default function Account() {
   };
 
   return (
-    <div className="min-h-full bg-black px-6 py-6">
+    <div className="min-h-full bg-black px-6 pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/10 via-black to-black pointer-events-none" />
-      
-      <div className="relative w-full max-w-lg mx-auto pb-12">
+
+      <div className="relative w-full max-w-lg mx-auto pb-12 pt-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-1">Account</h1>
           <p className="text-zinc-400 text-sm">Manage your QueOut experience</p>
@@ -340,7 +349,15 @@ export default function Account() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          onClick={() => alert('Logging out...')}
+          onClick={async () => {
+            try {
+              await signOut();
+              navigate(createPageUrl('Auth'));
+            } catch (error) {
+              console.error('Sign out error:', error);
+              alert('Failed to sign out. Please try again.');
+            }
+          }}
           className="w-full bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 hover:border-red-500/30 rounded-2xl p-4 transition-all duration-200 flex items-center justify-center gap-2 text-red-400 font-semibold text-sm"
         >
           <LogOut className="w-5 h-5" />

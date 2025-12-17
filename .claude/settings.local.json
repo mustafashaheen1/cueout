@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(npx cap init:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx cap:*)",
+      "Bash(pod install)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { createPageUrl } from "./components/utils";
+import { createPageUrl } from "../components/utils";
 import { Phone, Clock, User } from "lucide-react";
-import { PersonaProvider } from "./components/PersonaContext";
-import { AppProvider, useApp } from "./components/AppContext";
+import { PersonaProvider } from "../components/PersonaContext";
+import { AppProvider, useApp } from "../components/AppContext";
 
 function TabBar({ tabs, location }) {
   const { unreadHistoryCount, isTabBarHidden } = useApp();
