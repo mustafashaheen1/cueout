@@ -4,6 +4,7 @@ import { createPageUrl } from '../components/utils';
 import { Mail, Lock, Apple, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../components/AuthContext';
+import { getVerificationStatus } from '../api/verification';
 
 export default function Auth() {
   const [mode, setMode] = useState('login');
@@ -11,15 +12,42 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithApple, isAuthenticated } = useAuth();
+  const { signIn, signUp, signInWithApple, isAuthenticated, user } = useAuth();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - check phone verification status
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate(createPageUrl('Home'));
-    }
-  }, [isAuthenticated, navigate]);
+    const checkAndRedirect = async () => {
+      if (isAuthenticated && user) {
+        setDebugInfo(`Checking user: ${user.id}`);
+        console.log('🔍 Auth.jsx - Checking verification for user:', user.id);
+        try {
+          const verificationStatus = await getVerificationStatus(user.id);
+          console.log('📱 Verification Status:', verificationStatus);
+
+          setDebugInfo(`Phone: ${verificationStatus.phoneNumber || 'NULL'} | Verified: ${verificationStatus.isVerified}`);
+
+          if (verificationStatus.isVerified) {
+            setDebugInfo('Phone verified → Home');
+            console.log('✅ Phone verified - redirecting to Home');
+            setTimeout(() => navigate(createPageUrl('Home')), 500);
+          } else {
+            setDebugInfo('Phone NOT verified → PhoneVerification');
+            console.log('❌ Phone NOT verified - redirecting to PhoneVerification');
+            setTimeout(() => navigate(createPageUrl('PhoneVerification')), 500);
+          }
+        } catch (error) {
+          console.error('Error checking verification status:', error);
+          setDebugInfo(`Error: ${error.message} → PhoneVerification`);
+          console.log('⚠️ Error occurred - redirecting to PhoneVerification');
+          setTimeout(() => navigate(createPageUrl('PhoneVerification')), 500);
+        }
+      }
+    };
+
+    checkAndRedirect();
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,8 +60,7 @@ export default function Auth() {
       } else {
         await signUp(email, password);
       }
-      // Navigate to phone verification after successful auth
-      navigate(createPageUrl('PhoneVerification'));
+      // Don't navigate here - let the useEffect handle it based on verification status
     } catch (err) {
       console.error('Auth error:', err);
       setError(err.message || 'An error occurred. Please try again.');
@@ -48,7 +75,7 @@ export default function Auth() {
 
     try {
       await signInWithApple();
-      navigate(createPageUrl('PhoneVerification'));
+      // Don't navigate here - let the useEffect handle it based on verification status
     } catch (err) {
       console.error('Apple sign in error:', err);
       setError(err.message || 'Failed to sign in with Apple');
@@ -60,6 +87,17 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6 pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/30 via-black to-black" />
+
+      {/* Debug Panel - Remove after testing */}
+      {debugInfo && (
+        <div className="fixed top-4 left-4 right-4 bg-yellow-500/90 text-black p-4 rounded-lg text-xs font-mono z-50">
+          <div className="font-bold mb-1">DEBUG:</div>
+          <div>{debugInfo}</div>
+          <div className="mt-2 text-[10px]">
+            Auth: {isAuthenticated ? 'YES' : 'NO'} | User: {user ? user.id.substring(0, 8) : 'NONE'}
+          </div>
+        </div>
+      )}
       
       <div className="relative w-full max-w-lg mx-auto">
         <div className="text-center mb-12">

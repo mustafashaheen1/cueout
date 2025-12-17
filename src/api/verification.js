@@ -121,7 +121,13 @@ export async function sendVerificationCall(params) {
 
   } catch (error) {
     console.error('Error sending verification call:', error);
-    throw error;
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause
+    });
+    throw new Error(error.message || 'Failed to send verification call. Please try again.');
   }
 }
 
@@ -265,24 +271,37 @@ export async function resendVerificationCode(params) {
  */
 export async function getVerificationStatus(userId) {
   try {
+    console.log('🔍 Checking verification status for user:', userId);
+
     const { data: user, error } = await supabase
       .from('users')
       .select('phone_number, country_code')
       .eq('id', userId)
       .single();
 
+    console.log('📊 Database query result:', { user, error });
+
     if (error) {
+      console.error('❌ Database error:', error);
       throw error;
     }
 
+    const isVerified = !!user?.phone_number;
+    console.log('✅ Verification check result:', {
+      isVerified,
+      phone_number: user?.phone_number,
+      country_code: user?.country_code
+    });
+
     return {
-      isVerified: !!user.phone_number,
-      phoneNumber: user.phone_number,
-      countryCode: user.country_code
+      isVerified: isVerified,
+      phoneNumber: user?.phone_number,
+      countryCode: user?.country_code
     };
 
   } catch (error) {
-    console.error('Error getting verification status:', error);
+    console.error('💥 Error getting verification status:', error);
+    // Return NOT verified on error to be safe
     return {
       isVerified: false,
       phoneNumber: null,

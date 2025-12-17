@@ -96,7 +96,10 @@ export async function scheduleCall(params) {
         voice: selectedVoice,
         caller_id: selectedCallerID?.number || null,
         duration: personaConfig.duration || 30,
-        custom_phrases: personaConfig.customPhrases || []
+        // Convert custom_phrases array to comma-separated string
+        custom_phrases: Array.isArray(personaConfig.customPhrases)
+          ? personaConfig.customPhrases.join(', ')
+          : (personaConfig.customPhrases || '')
       }
     };
 
@@ -104,6 +107,9 @@ export async function scheduleCall(params) {
     if (recipientPhone) {
       requestBody.recipient_phone = recipientPhone;
     }
+
+    console.log('🚀 Calling Luron API:', BASE_URL + '/schedule');
+    console.log('📦 Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(`${BASE_URL}/schedule`, {
       method: 'POST',
@@ -113,7 +119,10 @@ export async function scheduleCall(params) {
       body: JSON.stringify(requestBody)
     });
 
+    console.log('📡 Response status:', response.status, response.statusText);
+
     const data = await response.json();
+    console.log('📥 Response data:', data);
 
     if (!response.ok) {
       // Handle different error status codes
@@ -135,6 +144,12 @@ export async function scheduleCall(params) {
 
   } catch (error) {
     console.error('Error scheduling call:', error);
+    console.error('Full error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause
+    });
 
     // Check if it's a network error
     if (error.message === 'Failed to fetch' || error instanceof TypeError) {
