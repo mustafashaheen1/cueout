@@ -11,7 +11,9 @@
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",
-      "Bash(xcodebuild clean:*)"
+      "Bash(xcodebuild clean:*)",
+      "WebSearch",
+      "WebFetch(domain:luron-api.onrender.com)"
     ]
   }
 }
