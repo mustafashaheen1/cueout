@@ -9,7 +9,9 @@
       "Bash(npx cap:*)",
       "Bash(pod install)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(xcodebuild clean:*)"
     ]
   }
 }
