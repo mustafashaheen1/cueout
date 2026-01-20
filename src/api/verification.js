@@ -73,13 +73,13 @@ export async function sendVerificationCall(params) {
       userId,
       contactMethods: ['call'],
       selectedTime: 'now', // Immediate call
-      selectedPersona: 'assistant', // Use assistant persona to follow custom instructions
-      note: `Hello! Your QueOut verification code is: ${speechCode}. I repeat, your verification code is: ${speechCode}. Thank you!`,
+      selectedPersona: 'reminder', // Use reminder persona for one-way message delivery
+      note: `This is an automated verification call. Your QueOut verification code is: ${speechCode}. Please write this down. Your code is: ${speechCode}. Goodbye.`,
       selectedVoice: 'emma',
       selectedCallerID: null,
       recipientPhone: fullPhoneNumber, // Pass the phone number being verified
       personaConfig: {
-        tone: 'professional',
+        tone: 'friendly',
         duration: 30,
         customPhrases: []
       }
