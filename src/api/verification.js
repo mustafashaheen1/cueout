@@ -68,22 +68,24 @@ export async function sendVerificationCall(params) {
     // Format full phone number with country code
     const fullPhoneNumber = `${countryCode}${phoneNumber}`;
 
-    // Schedule verification call via Luron API
-    const verificationMessage = `Your QueOut verification code is ${speechCode}. I repeat, your code is ${speechCode}.`;
+    // Schedule verification via Luron API
+    // Using SMS instead of call - text messages should send the custom_instruction directly
+    // without conversational greetings
+    const verificationMessage = `Your QueOut verification code is: ${code}`;
 
     const luronResponse = await scheduleLuronCall({
       userId,
-      contactMethods: ['call'],
-      selectedTime: 'now', // Immediate call
-      selectedPersona: 'automated_notification', // Use a persona type that sounds like it's for one-way messages
+      contactMethods: ['text'], // Use SMS instead of call
+      selectedTime: 'now', // Immediate delivery
+      selectedPersona: 'notification',
       note: verificationMessage,
-      selectedVoice: 'emma',
+      selectedVoice: 'emma', // Not used for SMS
       selectedCallerID: null,
       recipientPhone: fullPhoneNumber, // Pass the phone number being verified
       personaConfig: {
         tone: 'friendly',
         duration: 30,
-        customPhrases: verificationMessage // Pass as string, not array
+        customPhrases: verificationMessage
       }
     });
 
