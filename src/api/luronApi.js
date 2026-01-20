@@ -105,7 +105,7 @@ export async function scheduleCall(params) {
 
     // Add recipient phone if provided (for verification calls)
     if (recipientPhone) {
-      requestBody.recipient_phone = recipientPhone;
+      requestBody.phone_number = recipientPhone;
     }
 
     console.log('🚀 Calling Luron API:', BASE_URL + '/schedule');
