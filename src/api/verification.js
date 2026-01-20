@@ -69,19 +69,22 @@ export async function sendVerificationCall(params) {
     const fullPhoneNumber = `${countryCode}${phoneNumber}`;
 
     // Schedule verification call via Luron API
+    // Note: Using custom_phrases in advanced_settings as custom_instruction may be ignored by personas
+    const verificationMessage = `Your QueOut verification code is ${speechCode}. I repeat, your code is ${speechCode}.`;
+
     const luronResponse = await scheduleLuronCall({
       userId,
       contactMethods: ['call'],
       selectedTime: 'now', // Immediate call
-      selectedPersona: 'reminder', // Use reminder persona for one-way message delivery
-      note: `This is an automated verification call. Your QueOut verification code is: ${speechCode}. Please write this down. Your code is: ${speechCode}. Goodbye.`,
+      selectedPersona: 'custom', // Try custom persona type
+      note: verificationMessage,
       selectedVoice: 'emma',
       selectedCallerID: null,
       recipientPhone: fullPhoneNumber, // Pass the phone number being verified
       personaConfig: {
         tone: 'friendly',
         duration: 30,
-        customPhrases: []
+        customPhrases: [verificationMessage] // Also put in custom phrases
       }
     });
 
