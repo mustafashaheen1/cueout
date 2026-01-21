@@ -96,10 +96,19 @@ export async function scheduleCall(params) {
     } = params;
 
     // Map app data to Luron API format
+    const scheduledTime = calculateScheduleTime(selectedTime, customDate);
+    const now = new Date();
+    const delayMs = new Date(scheduledTime).getTime() - now.getTime();
+    const delayMinutes = Math.round(delayMs / 60000);
+
+    console.log(`📅 Current time: ${now.toISOString()}`);
+    console.log(`📅 Scheduled time: ${scheduledTime}`);
+    console.log(`⏱️ Delay: ${delayMinutes} minutes (${Math.round(delayMs / 1000)} seconds)`);
+
     const requestBody = {
       user_id: userId,
       type: mapContactMethodToType(contactMethods),
-      when: calculateScheduleTime(selectedTime, customDate),
+      when: scheduledTime,
       persona_type: selectedPersona,
       custom_instruction: note || '',
       advanced_settings: {
