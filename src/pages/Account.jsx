@@ -48,6 +48,13 @@ export default function Account() {
     setIsTabBarHidden(false);
   }, [setIsTabBarHidden]);
 
+  // Ensure tab bar shows when modals close
+  useEffect(() => {
+    if (!showRingtoneSelector && !showCallerIDEditor) {
+      setIsTabBarHidden(false);
+    }
+  }, [showRingtoneSelector, showCallerIDEditor, setIsTabBarHidden]);
+
   // Load user data from Supabase
   useEffect(() => {
     async function loadUserProfile() {
@@ -107,10 +114,10 @@ export default function Account() {
   };
 
   return (
-    <div className="min-h-full bg-black px-6 pt-safe pb-safe">
+    <div className="min-h-full bg-black px-6 pt-safe pb-safe overflow-x-hidden">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/10 via-black to-black pointer-events-none" />
 
-      <div className="relative w-full max-w-lg mx-auto pb-12 pt-6">
+      <div className="relative w-full max-w-lg mx-auto pb-12 pt-6 overflow-x-hidden">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-1">Account</h1>
           <p className="text-zinc-400 text-sm">Manage your QueOut experience</p>

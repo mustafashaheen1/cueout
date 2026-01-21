@@ -216,64 +216,76 @@ export default function Home() {
       setTimeout(() => setShowSuccess(false), 3000);
       topRef.current?.scrollIntoView({ behavior: 'smooth' });
     } else {
-      // Create new call via Luron API
+      // Create new call via Luron API with optimistic update
       try {
-        setIsScheduling(true);
-
         // Check if user has verified phone number
         if (!userPhone) {
-          throw new Error('Please verify your phone number first. Go to Account to add your phone.');
+          setScheduleError('Please verify your phone number first. Go to Account to add your phone.');
+          setTimeout(() => setScheduleError(null), 5000);
+          return;
         }
 
-        // Call Luron API to schedule the call
-        const response = await scheduleCallAPI({
+        setIsScheduling(true);
+
+        // Create local upcoming call immediately (optimistic update)
+        const tempCallId = Date.now().toString();
+        const newCall = {
+          id: tempCallId,
+          call_id: null, // Will be updated when API responds
+          isNew: true,
+          persona: persona.name,
+          icon: persona.icon,
+          dueTimestamp: Date.now() + durationMs,
+          isEditing: false,
+          originalState: {
+            selectedPersona,
+            selectedTime,
+            selectedVoice,
+            contactMethods,
+            note,
+            selectedCallerID,
+            voiceCategory,
+            orderedPersonas
+          }
+        };
+        addUpcomingCall(newCall);
+
+        // Show success immediately
+        setIsScheduling(false);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+        topRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+        // Call Luron API in background (don't block UI)
+        scheduleCallAPI({
           userId,
           contactMethods,
           selectedTime,
-          customDate: null, // TODO: Add custom date support later
+          customDate: null,
           selectedPersona,
           note,
           selectedVoice,
           selectedCallerID,
           personaConfig,
-          recipientPhone: userPhone // Add verified phone number
+          recipientPhone: userPhone
+        }).then(response => {
+          if (response.success) {
+            console.log('✅ Call scheduled with Luron API:', response.call_id);
+            // Could update the call with the real call_id here if needed
+          }
+        }).catch(error => {
+          console.error('❌ Luron API error (background):', error);
+          // Call is already in UI, so we don't show error to user
+          // They'll still get the local notification
         });
 
-        if (response.success) {
-          // Create local upcoming call with API call_id
-          const newCall = {
-            id: Date.now().toString(),
-            call_id: response.call_id, // Store API call ID
-            isNew: true,
-            persona: persona.name,
-            icon: persona.icon,
-            dueTimestamp: Date.now() + durationMs,
-            isEditing: false,
-            originalState: {
-              selectedPersona,
-              selectedTime,
-              selectedVoice,
-              contactMethods,
-              note,
-              selectedCallerID,
-              voiceCategory,
-              orderedPersonas
-            }
-          };
-          addUpcomingCall(newCall);
-
-          setShowSuccess(true);
-          setTimeout(() => setShowSuccess(false), 3000);
-          topRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
       } catch (error) {
         console.error('Error scheduling call:', error);
         setScheduleError(error.message || 'Failed to schedule call. Please try again.');
+        setIsScheduling(false);
 
         // Auto-hide error after 5 seconds
         setTimeout(() => setScheduleError(null), 5000);
-      } finally {
-        setIsScheduling(false);
       }
     }
   };
