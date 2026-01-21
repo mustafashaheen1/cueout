@@ -4,6 +4,7 @@ import { useApp } from '../components/AppContext';
 import { useAuth } from '../components/AuthContext';
 import { createPageUrl } from '../components/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../lib/supabase';
 import { 
   User, 
   Mail, 
@@ -28,26 +29,68 @@ export default function Account() {
   const [showWatermark, setShowWatermark] = useState(true);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('(555) 123-4567');
-  const [email, setEmail] = useState('john@example.com');
-  const [tempPhone, setTempPhone] = useState(phoneNumber);
-  const [tempEmail, setTempEmail] = useState(email);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [tempPhone, setTempPhone] = useState('');
+  const [tempEmail, setTempEmail] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedRingtone, setSelectedRingtone] = useState('Default');
   const [showRingtoneSelector, setShowRingtoneSelector] = useState(false);
   const [showCallerIDEditor, setShowCallerIDEditor] = useState(false);
   const navigate = useNavigate();
-  const { callerIDs, updateCallerIDName } = useApp();
+  const { callerIDs, updateCallerIDName, setIsTabBarHidden } = useApp();
   const { user, signOut } = useAuth();
 
   const ringtones = ['Default', 'Classic', 'Modern', 'Gentle', 'Urgent'];
 
+  // Ensure tab bar is visible on this page
+  useEffect(() => {
+    setIsTabBarHidden(false);
+  }, [setIsTabBarHidden]);
+
   // Load user data from Supabase
   useEffect(() => {
-    if (user) {
-      setEmail(user.email || 'john@example.com');
+    async function loadUserProfile() {
+      if (!user) return;
+
+      setEmail(user.email || '');
+
+      // Fetch user profile from users table
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('phone_number, country_code')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      // Format phone number with country code
+      if (profile?.phone_number) {
+        const formatted = formatPhoneNumber(profile.phone_number, profile.country_code);
+        setPhoneNumber(formatted);
+        setTempPhone(formatted);
+      }
     }
+
+    loadUserProfile();
   }, [user]);
+
+  // Helper to format phone number
+  const formatPhoneNumber = (phone, countryCode = '+1') => {
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '');
+
+    // Format for US/Canada numbers (10 digits)
+    if (digits.length === 10) {
+      return `${countryCode} (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    // Return with country code for other formats
+    return `${countryCode} ${phone}`;
+  };
 
   const handleUpgrade = () => {
     navigate(createPageUrl('Paywall'));
@@ -128,15 +171,19 @@ export default function Account() {
           
           <div className="flex items-center gap-2 text-sm pt-4 border-t border-zinc-800">
             <Phone className="w-4 h-4 text-zinc-400" />
-            {!isEditingPhone ? (
+            {!phoneNumber ? (
+              <button
+                onClick={() => navigate(createPageUrl('PhoneVerification'))}
+                className="flex-1 text-left text-red-400 hover:text-red-300 transition-colors text-sm font-medium"
+              >
+                Add phone number
+              </button>
+            ) : !isEditingPhone ? (
               <>
                 <span className="flex-1 text-zinc-300">{phoneNumber}</span>
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
                 <button
-                  onClick={() => {
-                    setTempPhone(phoneNumber);
-                    setIsEditingPhone(true);
-                  }}
+                  onClick={() => navigate(createPageUrl('PhoneVerification'))}
                   className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
                 >
                   <Edit2 className="w-3.5 h-3.5 text-zinc-400" />

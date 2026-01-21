@@ -13,27 +13,38 @@ const BASE_URL = 'https://luron-api.onrender.com';
  */
 function calculateScheduleTime(selectedTime, customDate = null) {
   const now = new Date();
+  let scheduledTime;
 
   switch (selectedTime) {
     case 'now':
       // 5 seconds from now
-      return new Date(now.getTime() + 5000).toISOString();
+      scheduledTime = new Date(now.getTime() + 5000);
+      break;
     case '3min':
       // 3 minutes from now
-      return new Date(now.getTime() + 3 * 60 * 1000).toISOString();
+      scheduledTime = new Date(now.getTime() + 3 * 60 * 1000);
+      break;
     case '5min':
       // 5 minutes from now
-      return new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+      scheduledTime = new Date(now.getTime() + 5 * 60 * 1000);
+      break;
     case 'custom':
       // Use provided custom date or default to 10 minutes
       if (customDate) {
-        return new Date(customDate).toISOString();
+        scheduledTime = new Date(customDate);
+      } else {
+        scheduledTime = new Date(now.getTime() + 10 * 60 * 1000);
       }
-      return new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+      break;
     default:
       // Default to 3 minutes
-      return new Date(now.getTime() + 3 * 60 * 1000).toISOString();
+      scheduledTime = new Date(now.getTime() + 3 * 60 * 1000);
   }
+
+  const delaySeconds = Math.round((scheduledTime.getTime() - now.getTime()) / 1000);
+  console.log(`⏰ Scheduling call for ${selectedTime}: ${delaySeconds} seconds from now (${scheduledTime.toISOString()})`);
+
+  return scheduledTime.toISOString();
 }
 
 /**

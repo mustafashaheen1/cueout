@@ -5,6 +5,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../components/utils';
 import { usePersona } from '../components/PersonaContext';
 import { useApp } from '../components/AppContext';
+import { useAuth } from '../components/AuthContext';
+import { supabase } from '../lib/supabase';
 import { timeOptions, realisticVoices, characterVoices } from '../components/constants';
 import PersonaCard from '../components/PersonaCard';
 import VoiceCard from '../components/VoiceCard';
@@ -22,7 +24,9 @@ export default function Home() {
   const location = useLocation();
   const topRef = useRef(null);
   const { getPersonaConfig, personas, addPersona } = usePersona();
-  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory, userId } = useApp();
+  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory, userId, setIsTabBarHidden } = useApp();
+  const { user } = useAuth();
+  const [userPhone, setUserPhone] = useState(null);
 
   const [selectedTime, setSelectedTime] = useState('3min');
   const [selectedPersona, setSelectedPersona] = useState('manager');
@@ -58,6 +62,35 @@ export default function Home() {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch user's verified phone number
+  useEffect(() => {
+    async function fetchUserPhone() {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('phone_number, country_code')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user phone:', error);
+        return;
+      }
+
+      if (data?.phone_number && data?.country_code) {
+        setUserPhone(`${data.country_code}${data.phone_number}`);
+      }
+    }
+
+    fetchUserPhone();
+  }, [user]);
+
+  // Ensure tab bar is visible on this page
+  useEffect(() => {
+    setIsTabBarHidden(false);
+  }, [setIsTabBarHidden]);
 
   // Sync orderedPersonas with context personas
   useEffect(() => {
@@ -187,6 +220,11 @@ export default function Home() {
       try {
         setIsScheduling(true);
 
+        // Check if user has verified phone number
+        if (!userPhone) {
+          throw new Error('Please verify your phone number first. Go to Account to add your phone.');
+        }
+
         // Call Luron API to schedule the call
         const response = await scheduleCallAPI({
           userId,
@@ -197,7 +235,8 @@ export default function Home() {
           note,
           selectedVoice,
           selectedCallerID,
-          personaConfig
+          personaConfig,
+          recipientPhone: userPhone // Add verified phone number
         });
 
         if (response.success) {

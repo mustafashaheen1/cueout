@@ -118,11 +118,31 @@ export default function PhoneVerification() {
   };
 
   const handleCodeChange = (index, value) => {
+    // Handle paste or multiple characters
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, '').slice(0, 6);
+      const newCode = [...code];
+
+      // Fill from current index onwards
+      for (let i = 0; i < digits.length && (index + i) < 6; i++) {
+        newCode[index + i] = digits[i];
+      }
+
+      setCode(newCode);
+
+      // Focus the next empty field or last field
+      const nextIndex = Math.min(index + digits.length, 5);
+      document.getElementById(`code-${nextIndex}`)?.focus();
+      return;
+    }
+
+    // Handle single digit input
     if (value.length <= 1 && /^\d*$/.test(value)) {
       const newCode = [...code];
       newCode[index] = value;
       setCode(newCode);
-      
+
+      // Auto-advance to next field
       if (value && index < 5) {
         document.getElementById(`code-${index + 1}`)?.focus();
       }
@@ -243,6 +263,8 @@ export default function PhoneVerification() {
                     key={index}
                     id={`code-${index}`}
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleCodeChange(index, e.target.value)}

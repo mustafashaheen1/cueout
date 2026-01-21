@@ -87,12 +87,17 @@ const mockHistory = [
 ];
 
 export default function History() {
-  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, syncHistoryWithAPI, apiLoading } = useApp();
+  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, syncHistoryWithAPI, apiLoading, setIsTabBarHidden } = useApp();
   const { personas } = usePersona();
   const [selectedCall, setSelectedCall] = useState(null);
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const navigate = useNavigate();
+
+  // Ensure tab bar is visible on this page
+  useEffect(() => {
+    setIsTabBarHidden(false);
+  }, [setIsTabBarHidden]);
 
   useEffect(() => {
     // Clear unread badge when entering history page

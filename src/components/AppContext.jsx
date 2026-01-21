@@ -272,21 +272,19 @@ export function AppProvider({ children }) {
   };
 
   const addUpcomingCall = async (call) => {
-    try {
-      if (isAuthenticated) {
-        const newCall = await createUpcomingCall(call);
-        setUpcomingCalls(prev => [newCall, ...prev]);
-        return newCall;
-      } else {
-        setUpcomingCalls(prev => [call, ...prev]);
-        return call;
-      }
-    } catch (error) {
-      console.error('Error adding upcoming call:', error);
-      // Optimistic add fallback
-      setUpcomingCalls(prev => [call, ...prev]);
-      return call;
+    // Optimistic update - update UI immediately for instant feedback
+    setUpcomingCalls(prev => [call, ...prev]);
+
+    // Save to database in background (don't block UI)
+    if (isAuthenticated) {
+      createUpcomingCall(call).catch(error => {
+        console.error('Error saving upcoming call to database:', error);
+        // Keep the call in UI even if database save fails
+        // User will still see it and it will work locally
+      });
     }
+
+    return call;
   };
 
   // Caller IDs
