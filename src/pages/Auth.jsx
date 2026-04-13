@@ -102,7 +102,7 @@ export default function Auth() {
       <div className="relative w-full max-w-lg mx-auto">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 mb-4">
-            <h1 className="text-4xl font-bold text-white">QueOut</h1>
+            <h1 className="text-4xl font-bold text-white">CueOut</h1>
             <div className="w-3 h-3 rounded-full bg-red-500 shadow-lg shadow-red-500/50 animate-pulse" />
           </div>
           <p className="text-zinc-400">Get the perfect call, right on cue.</p>

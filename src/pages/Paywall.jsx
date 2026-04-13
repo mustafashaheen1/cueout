@@ -104,7 +104,7 @@ export default function Paywall() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/20 to-purple-500/20 border border-red-500/30 rounded-full mb-4">
             <Crown className="w-4 h-4 text-red-400" />
-            <span className="text-red-400 font-semibold text-sm">QueOut Plus</span>
+            <span className="text-red-400 font-semibold text-sm">CueOut Plus</span>
           </div>
 
           <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-white via-red-200 to-purple-200 bg-clip-text text-transparent">

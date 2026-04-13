@@ -58,16 +58,22 @@ function LayoutContent({ children, currentPageName }) {
   ];
 
   return (
-    <div className="relative w-full h-[100dvh] bg-black overflow-hidden text-white">
-      <div 
-        className={`relative h-full w-full overflow-y-auto ${hideTabBar ? '' : 'pb-24'}`} 
+    <div className="relative w-full h-[100dvh] bg-black text-white overflow-hidden">
+      <div
+        className={`absolute inset-0 overflow-y-auto ${!hideTabBar ? 'pb-36' : ''}`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {children}
       </div>
-      
+
+      {/* Black safe area cover — blocks scrolled content from showing behind the notch */}
+      <div
+        className="absolute top-0 left-0 right-0 bg-black pointer-events-none z-[200]"
+        style={{ height: 'env(safe-area-inset-top)' }}
+      />
+
       {!hideTabBar && (
-        <div className="absolute bottom-0 left-0 right-0 pb-safe pt-2 flex justify-center pointer-events-none z-[100] mb-6">
+        <div className="absolute bottom-0 left-0 right-0 pb-safe pt-2 flex justify-center pointer-events-none z-[100]">
           <TabBar tabs={tabs} location={location} />
         </div>
       )}

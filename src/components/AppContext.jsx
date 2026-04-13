@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   getUpcomingCalls as fetchUpcomingCalls,
   getCallHistory as fetchCallHistory,
   addToHistory as addHistoryItem,
+  deleteHistoryItem as removeHistoryItem,
   getUnreadHistoryCount as fetchUnreadCount,
   markHistoryAsRead,
   createUpcomingCall,
@@ -19,29 +21,110 @@ import {
   initializeDefaultQuickSchedules,
   isAuthenticated
 } from '../api';
-import { getUserId, getHistory as fetchLuronHistory } from '../api/luronApi';
+import { getHistory as fetchLuronHistory } from '../api/luronApi';
+import { useAuth } from './AuthContext';
 
 const AppContext = createContext();
 
+// Whitelist of columns that exist in the upcoming_calls DB table
+const DB_UPCOMING_CALL_FIELDS = new Set([
+  'id', 'persona_id', 'voice_id', 'caller_id', 'contact_methods', 'context_note',
+  'due_timestamp', 'tone', 'background_sound', 'duration_seconds', 'voice_category',
+  'is_new', 'is_editing',
+]);
+
+const pickDbUpcomingCallFields = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([k]) => DB_UPCOMING_CALL_FIELDS.has(k)));
+
 export function AppProvider({ children }) {
-  // State
-  const [upcomingCalls, setUpcomingCalls] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [callerIDs, setCallerIDs] = useState([]);
-  const [quickSchedules, setQuickSchedules] = useState([]);
+  const { user } = useAuth();
+  // State — initialize from localStorage cache for instant render
+  const [upcomingCalls, setUpcomingCalls] = useState(() => {
+    try { const s = localStorage.getItem('upcomingCalls'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [history, setHistory] = useState(() => {
+    try { const s = localStorage.getItem('callHistory'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [callerIDs, setCallerIDs] = useState(() => {
+    try { const s = localStorage.getItem('callerIDs_v3'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  const [quickSchedules, setQuickSchedules] = useState(() => {
+    try { const s = localStorage.getItem('quickSchedules'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
   const [unreadHistoryCount, setUnreadHistoryCount] = useState(0);
   const [isTabBarHidden, setIsTabBarHidden] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticatedState] = useState(false);
+  const [isAuth, setIsAuthenticatedState] = useState(false);
 
   // Luron API Integration
-  const [userId] = useState(() => getUserId()); // Generate/retrieve user ID on mount
+  // Use Supabase UUID as the Luron user_id — stable across logout/login/devices
+  const userId = user?.id ?? null;
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Load data from Supabase on mount
+  // Ref so syncHistoryWithAPI error fallback always sees current history
+  const historyRef = useRef([]);
+
+  // Keep historyRef in sync with history state for use in closures
+  useEffect(() => { historyRef.current = history; }, [history]);
+
+  // Map Supabase call_history row → consistent app shape used by History.jsx
+  const normalizeHistoryItem = (item) => ({
+    id:             item.id,
+    persona:        item.persona    ?? item.persona_id    ?? 'manager',
+    personaName:    item.personaName ?? item.persona_id   ?? 'Unknown',
+    icon:           item.icon       ?? getPersonaIconStatic(item.persona_id),
+    completedAt:    item.completedAt ?? item.completed_at,
+    status:         item.status     ?? 'completed',
+    context:        item.context    ?? item.context_note  ?? '',
+    contactMethods: item.contactMethods ?? item.contact_methods ?? ['call'],
+    voice:          item.voice      ?? item.voice_id      ?? 'emma',
+    callerId:       item.callerId   ?? item.caller_id     ?? null,
+    duration:       item.duration   ?? item.duration_seconds ?? 0,
+    is_read:        item.is_read    ?? true,
+  });
+
+  // Normalize quick schedule from Supabase flat structure to app's nested preset structure
+  const normalizeQuickSchedule = (qs) => ({
+    ...qs,
+    preset: qs.preset || {
+      persona: qs.persona_id || 'manager',
+      note: qs.context_note || '',
+      contactMethods: qs.contact_methods || ['call'],
+      voice: qs.voice_id || 'emma',
+      callerId: qs.caller_id || null,
+      time: qs.time_preset || '3min',
+      voiceCategory: qs.voice_category || 'realistic'
+    }
+  });
+
+  // Load data on mount and whenever auth state changes
   useEffect(() => {
     loadData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        // New user signed in — reload fresh data for this account
+        loadData();
+      } else if (event === 'SIGNED_OUT') {
+        // Reset all state immediately so next user starts completely clean
+        setUpcomingCalls([]);
+        setHistory([]);
+        setCallerIDs([]);
+        setQuickSchedules([]);
+        setUnreadHistoryCount(0);
+        setIsAuthenticatedState(false);
+        setApiError(null);
+        setIsLoading(false);
+        // Wipe all user-specific localStorage cache keys
+        localStorage.removeItem('upcomingCalls');
+        localStorage.removeItem('callHistory');
+        localStorage.removeItem('quickSchedules');
+        localStorage.removeItem('callerIDs_v3');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const loadData = async () => {
@@ -63,23 +146,27 @@ export function AppProvider({ children }) {
       const [calls, historyData, callerIdsData, schedulesData, unreadCount] = await Promise.all([
         fetchUpcomingCalls().catch(() => []),
         fetchCallHistory().catch(() => []),
-        fetchCallerIds().catch(async () => {
-          // Initialize default caller IDs if none exist
-          await initializeDefaultCallerIds();
-          return fetchCallerIds();
-        }),
-        fetchQuickSchedules().catch(async () => {
-          // Initialize default quick schedules if none exist
-          await initializeDefaultQuickSchedules();
-          return fetchQuickSchedules();
-        }),
+        fetchCallerIds().then(async (data) => {
+          if (data.length === 0) {
+            await initializeDefaultCallerIds().catch(() => {});
+            return fetchCallerIds().catch(() => []);
+          }
+          return data;
+        }).catch(() => []),
+        fetchQuickSchedules().then(async (data) => {
+          if (data.length === 0) {
+            await initializeDefaultQuickSchedules().catch(() => {});
+            return fetchQuickSchedules().catch(() => []);
+          }
+          return data;
+        }).catch(() => []),
         fetchUnreadCount().catch(() => 0)
       ]);
 
       setUpcomingCalls(calls);
-      setHistory(historyData);
+      setHistory((historyData || []).map(normalizeHistoryItem));
       setCallerIDs(callerIdsData);
-      setQuickSchedules(schedulesData);
+      setQuickSchedules(schedulesData.map(normalizeQuickSchedule));
       setUnreadHistoryCount(unreadCount);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -137,8 +224,8 @@ export function AppProvider({ children }) {
   // Quick Schedules
   const addQuickSchedule = async (schedule) => {
     try {
-      if (isAuthenticated) {
-        const newSchedule = await createSchedule(schedule);
+      if (isAuth) {
+        const newSchedule = normalizeQuickSchedule(await createSchedule(schedule));
         setQuickSchedules(prev => [newSchedule, ...prev]);
         return newSchedule;
       } else {
@@ -155,8 +242,8 @@ export function AppProvider({ children }) {
 
   const updateQuickSchedule = async (id, updates) => {
     try {
-      if (isAuthenticated) {
-        const updated = await updateSchedule(id, updates);
+      if (isAuth) {
+        const updated = normalizeQuickSchedule(await updateSchedule(id, updates));
         setQuickSchedules(prev => prev.map(s => s.id === id ? updated : s));
         return updated;
       } else {
@@ -171,7 +258,7 @@ export function AppProvider({ children }) {
 
   const removeQuickSchedule = async (id) => {
     try {
-      if (isAuthenticated) {
+      if (isAuth) {
         await deleteQuickSchedule(id);
       }
       setQuickSchedules(prev => prev.filter(s => s.id !== id));
@@ -184,7 +271,7 @@ export function AppProvider({ children }) {
 
   const promoteQuickSchedule = async (id) => {
     try {
-      if (isAuthenticated) {
+      if (isAuth) {
         await promoteSchedule(id);
         // Reload to get correct ordering
         const schedules = await fetchQuickSchedules();
@@ -207,31 +294,51 @@ export function AppProvider({ children }) {
 
   // History
   const addToHistory = async (call) => {
+    const historyItem = {
+      ...call,
+      completed_at: new Date().toISOString(),
+      status: 'answered', // DB constraint: only 'answered' or 'missed' allowed
+    };
     try {
-      const historyItem = {
-        ...call,
-        completed_at: new Date().toISOString(),
-        status: 'answered'
-      };
-
-      if (isAuthenticated) {
-        const newHistoryItem = await addHistoryItem(historyItem);
-        setHistory(prev => [newHistoryItem, ...prev]);
-        setUnreadHistoryCount(prev => prev + 1);
-        return newHistoryItem;
-      } else {
-        setHistory(prev => [historyItem, ...prev]);
-        setUnreadHistoryCount(prev => prev + 1);
-        return historyItem;
-      }
+      // withAuth in addHistoryItem handles auth independently — no isAuth gate needed
+      const newHistoryItem = await addHistoryItem(historyItem);
+      setHistory(prev => [newHistoryItem, ...prev]);
+      setUnreadHistoryCount(prev => prev + 1);
+      return newHistoryItem;
     } catch (error) {
       console.error('Error adding to history:', error);
+      // Fall back to local state so UI still shows the entry
+      setHistory(prev => [historyItem, ...prev]);
+      setUnreadHistoryCount(prev => prev + 1);
+      return historyItem;
+    }
+  };
+
+  const refreshHistory = async () => {
+    try {
+      const data = await fetchCallHistory().catch(() => []);
+      const normalized = (data || []).map(normalizeHistoryItem);
+      setHistory(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Error refreshing history:', error);
+      return historyRef.current;
+    }
+  };
+
+  const deleteFromHistory = async (id) => {
+    try {
+      if (isAuth) await removeHistoryItem(id);
+      setHistory(prev => prev.filter(h => h.id !== id));
+    } catch (error) {
+      console.error('Error deleting history item:', error);
+      setHistory(prev => prev.filter(h => h.id !== id));
     }
   };
 
   const clearUnreadHistory = async () => {
     try {
-      if (isAuthenticated) {
+      if (isAuth) {
         await markHistoryAsRead();
       }
       setUnreadHistoryCount(0);
@@ -243,54 +350,51 @@ export function AppProvider({ children }) {
 
   // Upcoming Calls
   const removeUpcomingCall = async (id) => {
-    try {
-      if (isAuthenticated) {
-        await deleteUpcomingCall(id);
-      }
-      setUpcomingCalls(prev => prev.filter(c => c.id !== id));
-    } catch (error) {
-      console.error('Error removing upcoming call:', error);
-      // Optimistic delete fallback
-      setUpcomingCalls(prev => prev.filter(c => c.id !== id));
-    }
+    // Remove from local state immediately
+    setUpcomingCalls(prev => prev.filter(c => c.id !== id));
+    // Delete from DB — withAuth handles auth check
+    deleteUpcomingCall(id).catch(error => {
+      console.error('Error removing upcoming call from database:', error);
+    });
   };
 
   const updateUpcomingCall = async (id, updates) => {
-    try {
-      if (isAuthenticated) {
-        const updated = await updateCall(id, updates);
-        setUpcomingCalls(prev => prev.map(c => c.id === id ? updated : c));
-        return updated;
-      } else {
-        setUpcomingCalls(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-      }
-    } catch (error) {
-      console.error('Error updating upcoming call:', error);
-      // Optimistic update fallback
-      setUpcomingCalls(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    // Apply all updates to local state immediately (includes UI-only fields)
+    setUpcomingCalls(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    // Only send DB-valid fields to Supabase
+    const dbUpdates = pickDbUpcomingCallFields(updates);
+    if (Object.keys(dbUpdates).length > 0) {
+      updateCall(id, dbUpdates).catch(error => {
+        console.error('Error updating upcoming call:', error);
+      });
     }
   };
 
   const addUpcomingCall = async (call) => {
-    // Optimistic update - update UI immediately for instant feedback
-    setUpcomingCalls(prev => [call, ...prev]);
+    // Generate a proper UUID so local state and DB use the same ID from the start
+    const tempId = crypto.randomUUID();
+    const localCall = { ...call, id: tempId };
 
-    // Save to database in background (don't block UI)
-    if (isAuthenticated) {
-      createUpcomingCall(call).catch(error => {
+    // Add to local state immediately (optimistic)
+    setUpcomingCalls(prev => [localCall, ...prev]);
+
+    // Save to DB — send only valid DB columns (no UI-only fields)
+    createUpcomingCall({ ...pickDbUpcomingCallFields(call), id: tempId })
+      .then(savedCall => {
+        // Merge real DB response back into local item (keeps UI fields intact)
+        setUpcomingCalls(prev => prev.map(c => c.id === tempId ? { ...localCall, ...savedCall } : c));
+      })
+      .catch(error => {
         console.error('Error saving upcoming call to database:', error);
-        // Keep the call in UI even if database save fails
-        // User will still see it and it will work locally
       });
-    }
 
-    return call;
+    return localCall;
   };
 
   // Caller IDs
   const updateCallerIDName = async (id, newName) => {
     try {
-      if (isAuthenticated) {
+      if (isAuth) {
         await updateCallerName(id, newName);
       }
       setCallerIDs(prev => prev.map(cid => cid.id === id ? { ...cid, name: newName } : cid));
@@ -310,25 +414,25 @@ export function AppProvider({ children }) {
       const response = await fetchLuronHistory(userId, filters);
 
       if (response.success && response.history) {
-        // Map API history to app format
-        const mappedHistory = response.history.map(apiCall => ({
-          id: apiCall.call_id,
-          persona: apiCall.persona_type,
-          personaName: apiCall.persona_type,
-          icon: getPersonaIcon(apiCall.persona_type),
-          completedAt: apiCall.created_at,
-          status: apiCall.status || 'completed',
-          context: apiCall.custom_instruction || apiCall.call_context || '',
-          contactMethods: [apiCall.type],
-          voice: apiCall.advanced_settings?.voice || 'emma',
-          callerId: apiCall.advanced_settings?.caller_id ?
-            { number: apiCall.advanced_settings.caller_id } : null,
-          duration: apiCall.duration || 0,
-          // Keep original API data for reference
-          apiData: apiCall
-        }));
+        const mappedHistory = response.history.map(apiCall =>
+          normalizeHistoryItem({
+            id:             apiCall.call_id,
+            persona:        apiCall.persona_type,
+            personaName:    apiCall.persona_type,
+            icon:           getPersonaIconStatic(apiCall.persona_type),
+            completedAt:    apiCall.created_at,
+            status:         apiCall.status || 'completed',
+            context:        apiCall.custom_instruction || apiCall.call_context || '',
+            contactMethods: [apiCall.type],
+            voice:          apiCall.advanced_settings?.voice || 'emma',
+            callerId:       apiCall.advanced_settings?.caller_id
+                              ? { number: apiCall.advanced_settings.caller_id }
+                              : null,
+            duration:       apiCall.duration || 0,
+            apiData:        apiCall,
+          })
+        );
 
-        // Merge with local history (keep local items not in API)
         setHistory(mappedHistory);
         return mappedHistory;
       }
@@ -337,15 +441,15 @@ export function AppProvider({ children }) {
     } catch (error) {
       console.error('Error syncing history with API:', error);
       setApiError(error.message);
-      // Don't clear existing history on error
-      return history;
+      // Don't clear existing history on error — use ref to avoid stale closure
+      return historyRef.current;
     } finally {
       setApiLoading(false);
     }
   };
 
   // Helper to get persona icon based on persona_type
-  const getPersonaIcon = (personaType) => {
+  const getPersonaIconStatic = (personaType) => {
     const iconMap = {
       manager: '💼',
       coordinator: '📋',
@@ -371,7 +475,7 @@ export function AppProvider({ children }) {
       isTabBarHidden,
       setIsTabBarHidden,
       isLoading,
-      isAuthenticated,
+      isAuthenticated: isAuth,
 
       // Luron API Integration
       userId,
@@ -387,6 +491,8 @@ export function AppProvider({ children }) {
 
       // History
       addToHistory,
+      deleteFromHistory,
+      refreshHistory,
       clearUnreadHistory,
 
       // Quick Schedules

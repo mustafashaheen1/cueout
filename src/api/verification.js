@@ -70,7 +70,7 @@ export async function sendVerificationCall(params) {
 
     // Schedule verification call via Luron API
     // Work with the conversational AI - give explicit instructions to say the code immediately
-    const verificationMessage = `You must immediately say the following verification code to the person who answers. Do not ask questions. Just say: "Your QueOut verification code is ${speechCode}. Again, your code is ${speechCode}. Goodbye." Then end the call.`;
+    const verificationMessage = `You must immediately say the following verification code to the person who answers. Do not ask questions. Just say: "Your CueOut verification code is ${speechCode}. Again, your code is ${speechCode}. Goodbye." Then end the call.`;
 
     const luronResponse = await scheduleLuronCall({
       userId,
@@ -84,7 +84,7 @@ export async function sendVerificationCall(params) {
       personaConfig: {
         tone: 'friendly',
         duration: 30,
-        customPhrases: `Your QueOut verification code is ${speechCode}. Again, your code is ${speechCode}.`
+        customPhrases: `Your CueOut verification code is ${speechCode}. Again, your code is ${speechCode}.`
       }
     });
 

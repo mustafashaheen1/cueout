@@ -95,7 +95,17 @@ export function PersonaProvider({ children }) {
   };
 
   const getPersonaConfig = (personaId) => {
-    return personaConfigs[personaId] || defaultPersonaConfigs[personaId] || {
+    const raw = personaConfigs[personaId];
+    if (raw) {
+      // Normalize: Supabase returns snake_case, local defaults use camelCase
+      return {
+        tone: raw.tone || 'casual',
+        background: raw.background || raw.background_sound || 'none',
+        customPhrases: raw.customPhrases || raw.custom_phrases || [],
+        duration: raw.duration || raw.duration_seconds || 30,
+      };
+    }
+    return defaultPersonaConfigs[personaId] || {
       tone: 'casual',
       background: 'none',
       customPhrases: [],

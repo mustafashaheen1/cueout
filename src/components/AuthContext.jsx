@@ -11,6 +11,7 @@ import {
   resetPassword
 } from '../api';
 
+
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
@@ -89,7 +90,7 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     try {
       await authSignOut();
-      setUser(null);
+setUser(null);
       setSession(null);
       setIsAuthenticated(false);
     } catch (error) {

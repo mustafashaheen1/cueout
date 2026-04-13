@@ -29,10 +29,18 @@ export default function Account() {
   const [showWatermark, setShowWatermark] = useState(true);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [tempPhone, setTempPhone] = useState('');
   const [tempEmail, setTempEmail] = useState('');
+  const [tempUsername, setTempUsername] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedRingtone, setSelectedRingtone] = useState('Default');
   const [showRingtoneSelector, setShowRingtoneSelector] = useState(false);
@@ -61,6 +69,7 @@ export default function Account() {
       if (!user) return;
 
       setEmail(user.email || '');
+      setUsername(user.user_metadata?.full_name || '');
 
       // Fetch user profile from users table
       const { data: profile, error } = await supabase
@@ -108,9 +117,49 @@ export default function Account() {
     setIsEditingPhone(false);
   };
 
-  const handleSaveEmail = () => {
-    setEmail(tempEmail);
-    setIsEditingEmail(false);
+  const handleSaveEmail = async () => {
+    const trimmed = tempEmail.trim().toLowerCase();
+    if (!trimmed) { setEmailError('Email cannot be empty'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) { setEmailError('Enter a valid email address'); return; }
+    if (trimmed === email.toLowerCase()) { setIsEditingEmail(false); return; }
+
+    setIsSavingEmail(true);
+    setEmailError('');
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmed });
+      if (error) throw error;
+      setEmailSuccess(`Confirmation sent to ${trimmed}. Check your inbox to complete the change.`);
+      setIsEditingEmail(false);
+      setTimeout(() => setEmailSuccess(''), 6000);
+    } catch (err) {
+      setEmailError(err.message || 'Failed to update email. Try again.');
+      console.error('Error updating email:', err);
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  const handleSaveUsername = async () => {
+    const trimmed = tempUsername.trim();
+    if (!trimmed) {
+      setUsernameError('Name cannot be empty');
+      return;
+    }
+    setIsSavingUsername(true);
+    setUsernameError('');
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { full_name: trimmed }
+      });
+      if (error) throw error;
+      setUsername(trimmed);
+      setIsEditingUsername(false);
+    } catch (err) {
+      setUsernameError('Failed to save. Try again.');
+      console.error('Error saving username:', err);
+    } finally {
+      setIsSavingUsername(false);
+    }
   };
 
   return (
@@ -120,7 +169,7 @@ export default function Account() {
       <div className="relative w-full max-w-lg mx-auto pb-12 pt-6 overflow-x-hidden">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-1">Account</h1>
-          <p className="text-zinc-400 text-sm">Manage your QueOut experience</p>
+          <p className="text-zinc-400 text-sm">Manage your CueOut experience</p>
         </div>
 
         <motion.div
@@ -130,48 +179,93 @@ export default function Account() {
         >
           <div className="flex items-center gap-4 mb-4">
             <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-              J
+              {(username || email || 'U')[0].toUpperCase()}
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-base text-white">John Doe</h3>
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <Mail className="w-3.5 h-3.5" />
-                {!isEditingEmail ? (
-                  <>
-                    <span>{email}</span>
-                    <button
-                      onClick={() => {
-                        setTempEmail(email);
-                        setIsEditingEmail(true);
-                      }}
-                      className="p-1 hover:bg-zinc-800 rounded transition-colors"
-                    >
-                      <Edit2 className="w-3 h-3 text-zinc-500" />
-                    </button>
-                  </>
-                ) : (
+              {/* Username row */}
+              {!isEditingUsername ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className={`font-semibold text-base ${username ? 'text-white' : 'text-zinc-500'}`}>
+                    {username || 'Add your name'}
+                  </h3>
+                  <button
+                    onClick={() => { setTempUsername(username); setUsernameError(''); setIsEditingUsername(true); }}
+                    className="p-1 hover:bg-zinc-800 rounded transition-colors"
+                  >
+                    <Edit2 className="w-3 h-3 text-zinc-500" />
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-1">
                   <div className="flex items-center gap-2">
                     <input
-                      type="email"
-                      value={tempEmail}
-                      onChange={(e) => setTempEmail(e.target.value)}
-                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500/50"
+                      type="text"
+                      value={tempUsername}
+                      onChange={(e) => { setTempUsername(e.target.value); setUsernameError(''); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setIsEditingUsername(false); }}
+                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-red-500/50 min-w-0"
+                      placeholder="Your name"
+                      maxLength={40}
                       autoFocus
                     />
                     <button
-                      onClick={handleSaveEmail}
-                      className="p-1 bg-green-500 hover:bg-green-600 rounded transition-colors"
+                      onClick={handleSaveUsername}
+                      disabled={isSavingUsername}
+                      className="p-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 rounded transition-colors flex-shrink-0"
                     >
                       <CheckCircle2 className="w-3 h-3 text-white" />
                     </button>
                     <button
-                      onClick={() => setIsEditingEmail(false)}
-                      className="p-1 bg-zinc-700 hover:bg-zinc-600 rounded transition-colors"
+                      onClick={() => { setIsEditingUsername(false); setUsernameError(''); }}
+                      className="p-1 bg-zinc-700 hover:bg-zinc-600 rounded transition-colors flex-shrink-0"
                     >
                       <X className="w-3 h-3 text-white" />
                     </button>
                   </div>
-                )}
+                  {usernameError && <p className="text-[10px] text-red-400 mt-1">{usernameError}</p>}
+                </div>
+              )}
+              <div className="text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                  {!isEditingEmail ? (
+                    <>
+                      <span className="truncate">{email}</span>
+                      <button
+                        onClick={() => { setTempEmail(email); setEmailError(''); setEmailSuccess(''); setIsEditingEmail(true); }}
+                        className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
+                      >
+                        <Edit2 className="w-3 h-3 text-zinc-500" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="email"
+                        value={tempEmail}
+                        onChange={(e) => { setTempEmail(e.target.value); setEmailError(''); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEmail(); if (e.key === 'Escape') setIsEditingEmail(false); }}
+                        className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500/50"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleSaveEmail}
+                        disabled={isSavingEmail}
+                        className="p-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 rounded transition-colors flex-shrink-0"
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-white" />
+                      </button>
+                      <button
+                        onClick={() => { setIsEditingEmail(false); setEmailError(''); }}
+                        className="p-1 bg-zinc-700 hover:bg-zinc-600 rounded transition-colors flex-shrink-0"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {emailError && <p className="text-[10px] text-red-400 mt-1 ml-5">{emailError}</p>}
+                {emailSuccess && <p className="text-[10px] text-green-400 mt-1 ml-5">{emailSuccess}</p>}
               </div>
             </div>
           </div>
@@ -304,7 +398,7 @@ export default function Account() {
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl">
-                  <span className="text-xs font-medium text-white">Show QueOut watermark</span>
+                  <span className="text-xs font-medium text-white">Show CueOut watermark</span>
                   <button
                     onClick={() => setShowWatermark(!showWatermark)}
                     className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
@@ -378,23 +472,23 @@ export default function Account() {
         >
           <SettingsItem
             icon={HelpCircle}
-            label="How QueOut works"
-            onClick={() => alert('Opening help documentation...')}
+            label="How CueOut works"
+            onClick={() => {}}
           />
           <SettingsItem
             icon={Shield}
             label="Privacy Policy"
-            onClick={() => alert('Opening privacy policy...')}
+            onClick={() => {}}
           />
           <SettingsItem
             icon={Shield}
             label="Terms of Use"
-            onClick={() => alert('Opening terms of use...')}
+            onClick={() => {}}
           />
           <SettingsItem
             icon={Mail}
             label="Support"
-            onClick={() => window.location.href = 'mailto:support@gocall.app'}
+            onClick={() => {}}
             last
           />
         </motion.div>
@@ -455,7 +549,7 @@ export default function Account() {
                         <Phone className="w-4 h-4 text-zinc-400" />
                       </div>
                       <div className="flex-1">
-                        <div className="text-xs text-zinc-500">{cid.number}</div>
+                        <div className="text-xs text-zinc-500">{cid.phone_number || cid.number}</div>
                         <div className="text-xs text-zinc-500">{cid.location}</div>
                       </div>
                     </div>

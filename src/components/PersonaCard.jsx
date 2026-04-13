@@ -14,9 +14,9 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
 
   if (compact) {
     return (
-      <button
+      <div
         onClick={onClick}
-        className="relative group">
+        className="relative group cursor-pointer">
 
         <motion.div
           whileTap={{ scale: 0.95 }}
@@ -40,15 +40,15 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
             <Settings className="w-3 h-3 text-zinc-300" />
           </button>
         }
-      </button>);
+      </div>);
 
   }
 
   return (
-    <motion.button
+    <motion.div
       onClick={onClick}
       whileTap={{ scale: 0.98 }}
-      className={`relative w-full rounded-2xl p-4 transition-all ${
+      className={`relative w-full rounded-2xl p-4 transition-all cursor-pointer ${
       selected ?
       'bg-red-500/20 border-2 border-red-500 shadow-lg shadow-red-500/20' :
       'bg-zinc-800 border-2 border-zinc-700 hover:border-zinc-600'}`
@@ -71,6 +71,6 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
           </button>
         }
       </div>
-    </motion.button>);
+    </motion.div>);
 
 }

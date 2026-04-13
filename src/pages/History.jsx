@@ -87,10 +87,11 @@ const mockHistory = [
 ];
 
 export default function History() {
-  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, syncHistoryWithAPI, apiLoading, setIsTabBarHidden } = useApp();
+  const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, refreshHistory, setIsTabBarHidden } = useApp();
   const { personas } = usePersona();
   const [selectedCall, setSelectedCall] = useState(null);
   const [editingSchedule, setEditingSchedule] = useState(null);
+  const [isNewPreset, setIsNewPreset] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const navigate = useNavigate();
 
@@ -103,11 +104,11 @@ export default function History() {
     // Clear unread badge when entering history page
     clearUnreadHistory();
 
-    // Fetch real history from Luron API
+    // Refresh history from Supabase
     const fetchHistory = async () => {
       setIsLoadingHistory(true);
       try {
-        await syncHistoryWithAPI();
+        await refreshHistory();
       } catch (error) {
         console.error('Error fetching history:', error);
       } finally {
@@ -190,7 +191,7 @@ export default function History() {
         voiceCategory: 'realistic'
       }
     };
-    addQuickSchedule(newSchedule);
+    setIsNewPreset(true);
     setEditingSchedule(newSchedule);
   };
 
@@ -280,7 +281,7 @@ export default function History() {
 
                     <div 
                       onClick={(e) => handleEditSchedule(e, option)}
-                      className="absolute -top-2 -right-2 w-7 h-7 bg-zinc-900 rounded-full border border-zinc-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:bg-zinc-800 hover:border-red-500/50 z-10"
+                      className="absolute -top-2 -right-2 w-7 h-7 bg-zinc-900 rounded-full border border-zinc-700 flex items-center justify-center transition-all shadow-xl hover:bg-zinc-800 hover:border-red-500/50 z-10"
                     >
                       <Settings className="w-3.5 h-3.5 text-zinc-400" />
                     </div>
@@ -472,14 +473,23 @@ export default function History() {
             personas={personas}
             voices={voices}
             onSave={(updatedSchedule) => {
-              updateQuickSchedule(updatedSchedule.id, updatedSchedule);
+              if (isNewPreset) {
+                addQuickSchedule(updatedSchedule);
+              } else {
+                updateQuickSchedule(updatedSchedule.id, updatedSchedule);
+              }
+              setIsNewPreset(false);
               setEditingSchedule(null);
             }}
             onDelete={(id) => {
-              removeQuickSchedule(id);
+              if (!isNewPreset) removeQuickSchedule(id);
+              setIsNewPreset(false);
               setEditingSchedule(null);
             }}
-            onClose={() => setEditingSchedule(null)}
+            onClose={() => {
+              setIsNewPreset(false);
+              setEditingSchedule(null);
+            }}
           />
         )}
       </AnimatePresence>

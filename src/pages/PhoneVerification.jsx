@@ -231,7 +231,7 @@ export default function PhoneVerification() {
             <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
               <p className="text-sm text-zinc-400 text-center leading-relaxed">
                 <strong className="text-white">🎯 On-brand verification!</strong><br />
-                You'll receive a quick AI call that reads your 6-digit verification code. QueOut will only contact you for scheduled calls.
+                You'll receive a quick AI call that reads your 6-digit verification code. CueOut will only contact you for scheduled calls.
               </p>
             </div>
           </motion.div>

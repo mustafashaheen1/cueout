@@ -89,7 +89,7 @@ export default function PersonaSettings() {
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/20 via-black to-black pointer-events-none" />
       
       <div className="relative">
-        <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-zinc-800 px-6 py-4">
+        <div className="sticky top-safe z-40 bg-black/80 backdrop-blur-xl border-b border-zinc-800 px-6 py-4">
           <div className="flex items-center justify-between max-w-md mx-auto">
             <button
               onClick={() => navigate(-1)}
@@ -115,13 +115,10 @@ export default function PersonaSettings() {
         <div className="px-6 py-6 max-w-md mx-auto space-y-6">
           
           {/* Preview moved to top */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative"
-          >
+          <div className="relative">
             <div className="absolute inset-0 bg-gradient-to-br from-red-500/20 to-orange-500/20 blur-2xl" />
             <div className="relative bg-gradient-to-br from-zinc-900/80 to-zinc-800/80 backdrop-blur-xl border border-red-500/30 rounded-3xl p-6">
+
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-red-400" />
                 <h3 className="font-bold text-white">Preview</h3>
@@ -159,15 +156,10 @@ export default function PersonaSettings() {
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* General Settings */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6"
-          >
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6">
              <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
                 <Settings className="w-5 h-5 text-white" />
@@ -199,14 +191,9 @@ export default function PersonaSettings() {
                 />
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6"
-          >
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
                 <MessageSquare className="w-5 h-5 text-white" />
@@ -227,14 +214,9 @@ export default function PersonaSettings() {
                 />
               ))}
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6"
-          >
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
                 <Volume2 className="w-5 h-5 text-white" />
@@ -255,14 +237,9 @@ export default function PersonaSettings() {
                 />
               ))}
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6"
-          >
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-red-500 rounded-xl flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-white" />
@@ -333,14 +310,9 @@ export default function PersonaSettings() {
                 <span className="text-white">Add Custom Phrase</span>
               </button>
             )}
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6"
-          >
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
                 <Clock className="w-5 h-5 text-white" />
@@ -355,21 +327,16 @@ export default function PersonaSettings() {
               value={duration}
               onChange={setDuration}
             />
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="pb-20"
-          >
+          </div>
+
+          <div className="pb-20">
             <button
               onClick={handleDelete}
               className="w-full bg-zinc-900 hover:bg-red-950/30 text-zinc-500 hover:text-red-500 font-semibold py-4 rounded-3xl border border-zinc-800 hover:border-red-900/50 transition-all"
             >
               Delete Persona
             </button>
-          </motion.div>
+          </div>
 
         </div>
 

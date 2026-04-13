@@ -14,7 +14,7 @@ import TimeChip from '../components/TimeChip';
 import UpcomingCallBanner from '../components/UpcomingCallBanner';
 import ContactMethodSelector from '../components/ContactMethodSelector';
 import CallerIDSelector from '../components/CallerIDSelector';
-import { scheduleCall as scheduleCallAPI } from '../api/luronApi';
+import { scheduleCall as scheduleCallAPI, getUserId } from '../api/luronApi';
 
 // Personas are now managed in PersonaContext
 
@@ -24,7 +24,7 @@ export default function Home() {
   const location = useLocation();
   const topRef = useRef(null);
   const { getPersonaConfig, personas, addPersona } = usePersona();
-  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory, userId, setIsTabBarHidden } = useApp();
+  const { upcomingCalls, addUpcomingCall, removeUpcomingCall, updateUpcomingCall, addToHistory, setIsTabBarHidden } = useApp();
   const { user } = useAuth();
   const [userPhone, setUserPhone] = useState(null);
 
@@ -189,25 +189,26 @@ export default function Home() {
       // Update existing call via Context (keep local-only functionality for editing)
       const existingCall = upcomingCalls.find((c) => c.id === editingCallId);
       if (existingCall) {
-        let newDueTimestamp = existingCall.dueTimestamp;
-        if (selectedTime !== existingCall.originalState.selectedTime) {
-          newDueTimestamp = Date.now() + durationMs;
-        }
+        const timeChanged = selectedTime !== existingCall.originalState?.selectedTime;
+        const newDueTimestamp = timeChanged
+          ? new Date(Date.now() + durationMs).toISOString()
+          : existingCall.due_timestamp;
 
         updateUpcomingCall(editingCallId, {
-          persona: persona.name,
-          icon: persona.icon,
-          dueTimestamp: newDueTimestamp,
-          isEditing: false,
+          // DB fields
+          persona_id:       selectedPersona,
+          voice_id:         selectedVoice,
+          caller_id:        selectedCallerID?.id || null,
+          contact_methods:  contactMethods,
+          context_note:     note || '',
+          due_timestamp:    newDueTimestamp,
+          is_editing:       false,
+          // UI-only fields
+          persona:          persona.name,
+          icon:             persona.icon,
           originalState: {
-            selectedPersona,
-            selectedTime,
-            selectedVoice,
-            contactMethods,
-            note,
-            selectedCallerID,
-            voiceCategory,
-            orderedPersonas
+            selectedPersona, selectedTime, selectedVoice,
+            contactMethods, note, selectedCallerID, voiceCategory, orderedPersonas
           }
         });
       }
@@ -231,24 +232,26 @@ export default function Home() {
         setIsScheduling(true);
 
         // Create local upcoming call immediately (optimistic update)
-        const tempCallId = Date.now().toString();
         const newCall = {
-          id: tempCallId,
-          call_id: null, // Will be updated when API responds
-          isNew: true,
-          persona: persona.name,
-          icon: persona.icon,
-          dueTimestamp: Date.now() + durationMs,
-          isEditing: false,
+          // DB column names — sent to Supabase
+          persona_id:       selectedPersona,
+          voice_id:         selectedVoice,
+          caller_id:        selectedCallerID?.id || null,
+          contact_methods:  contactMethods,
+          context_note:     note || '',
+          due_timestamp:    new Date(Date.now() + durationMs).toISOString(),
+          tone:             personaConfig?.tone || null,
+          background_sound: personaConfig?.background || null,
+          duration_seconds: selectedTime === '3min' ? 180 : selectedTime === '5min' ? 300 : 30,
+          voice_category:   voiceCategory || 'realistic',
+          is_new:           true,
+          is_editing:       false,
+          // UI-only display fields — filtered out before DB insert
+          persona:          persona.name,
+          icon:             persona.icon,
           originalState: {
-            selectedPersona,
-            selectedTime,
-            selectedVoice,
-            contactMethods,
-            note,
-            selectedCallerID,
-            voiceCategory,
-            orderedPersonas
+            selectedPersona, selectedTime, selectedVoice,
+            contactMethods, note, selectedCallerID, voiceCategory, orderedPersonas
           }
         };
         addUpcomingCall(newCall);
@@ -263,27 +266,38 @@ export default function Home() {
         setNote('');
 
         // Call Luron API in background (don't block UI)
+        // Always save to Supabase call_history regardless of Luron result
         scheduleCallAPI({
-          userId,
+          userId:          getUserId(),
           contactMethods,
           selectedTime,
-          customDate: null,
+          customDate:      null,
           selectedPersona,
           note,
           selectedVoice,
           selectedCallerID,
           personaConfig,
-          recipientPhone: userPhone
-        }).then(response => {
-          if (response.success) {
+          recipientPhone:  userPhone
+        })
+          .then(response => {
             console.log('✅ Call scheduled with Luron API:', response.call_id);
-            // Could update the call with the real call_id here if needed
-          }
-        }).catch(error => {
-          console.error('❌ Luron API error (background):', error);
-          // Call is already in UI, so we don't show error to user
-          // They'll still get the local notification
-        });
+          })
+          .catch(error => {
+            console.error('❌ Luron API error (background):', error);
+          })
+          .finally(() => {
+            // Save to Supabase call_history — runs whether Luron succeeded or failed
+            addToHistory({
+              persona_id:       selectedPersona,
+              voice_id:         selectedVoice,
+              caller_id:        selectedCallerID?.id || null,
+              contact_methods:  contactMethods,
+              context_note:     note || '',
+              status:           'scheduled',
+              duration_seconds: selectedTime === '3min' ? 180 : selectedTime === '5min' ? 300 : 0,
+              scheduled_time:   new Date(Date.now() + durationMs).toISOString(),
+            });
+          });
 
       } catch (error) {
         console.error('Error scheduling call:', error);
@@ -325,7 +339,7 @@ export default function Home() {
       if (s.orderedPersonas) setOrderedPersonas(s.orderedPersonas);
 
       setEditingCallId(callId);
-      updateUpcomingCall(callId, { isEditing: true });
+      updateUpcomingCall(callId, { is_editing: true });
     }
   };
 
@@ -355,7 +369,7 @@ export default function Home() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold text-white">QueOut</h1>
+              <h1 className="text-3xl font-bold text-white">CueOut</h1>
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50 animate-pulse" />
             </div>
             
@@ -768,10 +782,10 @@ export default function Home() {
                   </button>
                 </div>
                 
-                <div className="mb-4">
+                <div className="mb-4 overflow-hidden">
                   <input
                   type="datetime-local"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50" />
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl  py-3 text-white focus:outline-none focus:border-red-500/50" />
 
                 </div>
 

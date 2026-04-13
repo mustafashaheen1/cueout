@@ -157,6 +157,13 @@ button:focus-visible {
   }
 }
 
+/* Prevent iOS auto-zoom on input focus (triggered when font-size < 16px) */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
 /* Safe area insets for iOS devices (notch support) */
 :root {
   --safe-area-inset-top: env(safe-area-inset-top);
@@ -173,6 +180,7 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  background-color: #000000; /* Prevent white flash during navigation */
 }
 
 /* Add safe area padding to main containers */
@@ -196,6 +204,10 @@ html, body, #root {
 
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+.top-safe {
+  top: env(safe-area-inset-top);
 }
 
 .pl-safe {

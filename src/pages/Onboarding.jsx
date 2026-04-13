@@ -32,7 +32,7 @@ const VisualMockup = ({ type }) => {
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center mb-6 shadow-lg shadow-red-500/50">
               <div className="text-4xl">📞</div>
             </div>
-            <h3 className="text-2xl font-bold mb-2 text-white">QueOut</h3>
+            <h3 className="text-2xl font-bold mb-2 text-white">CueOut</h3>
             <p className="text-zinc-400 text-sm mb-8">Incoming call...</p>
             <div className="flex gap-4 mt-auto">
               <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg shadow-red-500/50">

@@ -1,166 +1,86 @@
 import { supabase } from '../lib/supabase';
-import { getCurrentUserId } from '../lib/supabase';
+import { supabaseQuery, withAuth } from '../lib/supabaseMiddleware';
 
-// ============================================================================
-// PERSONAS API
-// ============================================================================
+// ─── Personas ─────────────────────────────────────────────────────────────────
 
-/**
- * Get all personas (default + user's custom personas)
- */
-export const getPersonas = async () => {
-  const userId = await getCurrentUserId();
+export const getPersonas = () =>
+  withAuth((userId) =>
+    supabaseQuery(() =>
+      supabase.from('personas').select('*')
+        .or(`is_default.eq.true,user_id.eq.${userId}`)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true })
+    )
+  );
 
-  const { data, error } = await supabase
-    .from('personas')
-    .select('*')
-    .or(`is_default.eq.true,user_id.eq.${userId}`)
-    .order('is_default', { ascending: false })
-    .order('created_at', { ascending: true });
+export const getPersona = (personaId) =>
+  supabaseQuery(() =>
+    supabase.from('personas').select('*').eq('id', personaId).single()
+  );
 
-  if (error) throw error;
-  return data;
-};
+export const createPersona = (persona) =>
+  withAuth((userId) =>
+    supabaseQuery(() =>
+      supabase.from('personas').insert([{ ...persona, user_id: userId, is_default: false }]).select().single()
+    )
+  );
 
-/**
- * Get a single persona by ID
- */
-export const getPersona = async (personaId) => {
-  const { data, error } = await supabase
-    .from('personas')
-    .select('*')
-    .eq('id', personaId)
-    .single();
+export const updatePersona = (personaId, updates) =>
+  supabaseQuery(() =>
+    supabase.from('personas').update(updates).eq('id', personaId).select().single()
+  );
 
-  if (error) throw error;
-  return data;
-};
+export const deletePersona = (personaId) =>
+  supabaseQuery(() =>
+    supabase.from('personas').delete().eq('id', personaId).eq('is_default', false)
+  );
 
-/**
- * Create a custom persona
- */
-export const createPersona = async (persona) => {
-  const userId = await getCurrentUserId();
+// ─── Persona Configs ──────────────────────────────────────────────────────────
 
-  const { data, error } = await supabase
-    .from('personas')
-    .insert([{
-      ...persona,
-      user_id: userId,
-      is_default: false
-    }])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-/**
- * Update a persona
- */
-export const updatePersona = async (personaId, updates) => {
-  const { data, error } = await supabase
-    .from('personas')
-    .update(updates)
-    .eq('id', personaId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-/**
- * Delete a custom persona
- */
-export const deletePersona = async (personaId) => {
-  const { error } = await supabase
-    .from('personas')
-    .delete()
-    .eq('id', personaId)
-    .eq('is_default', false); // Safety: can't delete defaults
-
-  if (error) throw error;
-};
-
-// ============================================================================
-// PERSONA CONFIGS API
-// ============================================================================
-
-/**
- * Get persona config for a specific persona
- */
-export const getPersonaConfig = async (personaId) => {
-  const userId = await getCurrentUserId();
-
-  // Try to get user-specific config first, fall back to default
-  const { data, error } = await supabase
-    .from('persona_configs')
-    .select('*')
-    .eq('persona_id', personaId)
-    .or(`user_id.eq.${userId},user_id.is.null`)
-    .order('user_id', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error; // Ignore "not found" error
-  return data;
-};
-
-/**
- * Get all persona configs for current user
- */
-export const getPersonaConfigs = async () => {
-  const userId = await getCurrentUserId();
-
-  const { data, error } = await supabase
-    .from('persona_configs')
-    .select('*')
-    .or(`user_id.eq.${userId},user_id.is.null`);
-
-  if (error) throw error;
-
-  // Convert to object keyed by persona_id
-  return data.reduce((acc, config) => {
-    acc[config.persona_id] = config;
-    return acc;
-  }, {});
-};
-
-/**
- * Update or create persona config
- */
-export const upsertPersonaConfig = async (personaId, config) => {
-  const userId = await getCurrentUserId();
-
-  const { data, error } = await supabase
-    .from('persona_configs')
-    .upsert([{
-      persona_id: personaId,
-      user_id: userId,
-      ...config
-    }], {
-      onConflict: 'persona_id,user_id'
+export const getPersonaConfig = (personaId) =>
+  withAuth((userId) =>
+    supabaseQuery(() =>
+      supabase.from('persona_configs').select('*')
+        .eq('persona_id', personaId)
+        .or(`user_id.eq.${userId},user_id.is.null`)
+        .order('user_id', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .single()
+    ).catch((err) => {
+      // PGRST116 = no row found — not an error, just no config yet
+      if (err.code === 'PGRST116') return null;
+      throw err;
     })
-    .select()
-    .single();
+  );
 
-  if (error) throw error;
-  return data;
-};
+export const getPersonaConfigs = () =>
+  withAuth(async (userId) => {
+    const data = await supabaseQuery(() =>
+      supabase.from('persona_configs').select('*').or(`user_id.eq.${userId},user_id.is.null`)
+    );
+    return (data || []).reduce((acc, config) => {
+      acc[config.persona_id] = config;
+      return acc;
+    }, {});
+  });
 
-/**
- * Delete persona config
- */
-export const deletePersonaConfig = async (personaId) => {
-  const userId = await getCurrentUserId();
+export const upsertPersonaConfig = (personaId, config) =>
+  withAuth((userId) =>
+    supabaseQuery(() =>
+      supabase.from('persona_configs').upsert([{
+        persona_id: personaId,
+        user_id: userId,
+        tone: config.tone,
+        background_sound: config.background,
+        custom_phrases: config.customPhrases,
+        duration_seconds: config.duration,
+      }], { onConflict: 'persona_id,user_id' }).select().single()
+    )
+  );
 
-  const { error } = await supabase
-    .from('persona_configs')
-    .delete()
-    .eq('persona_id', personaId)
-    .eq('user_id', userId);
-
-  if (error) throw error;
-};
+export const deletePersonaConfig = (personaId) =>
+  withAuth((userId) =>
+    supabaseQuery(() =>
+      supabase.from('persona_configs').delete().eq('persona_id', personaId).eq('user_id', userId)
+    )
+  );
