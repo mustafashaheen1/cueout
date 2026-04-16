@@ -9,7 +9,7 @@ export default function VoiceCard({ voice, selected, onClick }) {
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
-      className={`relative p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
+      className={`relative p-3 rounded-2xl border-2 overflow-hidden transition-all duration-200 text-left ${
         selected
           ? 'bg-purple-500/20 border-purple-500 shadow-lg shadow-purple-500/30'
           : 'bg-zinc-800/50 border-zinc-700 hover:border-zinc-600'
@@ -23,10 +23,10 @@ export default function VoiceCard({ voice, selected, onClick }) {
         />
       )}
 
-      <div className="relative">
+      <div className="relative min-w-0">
         {/* Voice icon/avatar */}
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-3 ${
-          isRealistic 
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl mb-2 flex-shrink-0 ${
+          isRealistic
             ? 'bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg'
             : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg'
         }`}>
@@ -34,12 +34,12 @@ export default function VoiceCard({ voice, selected, onClick }) {
         </div>
 
         {/* Voice name */}
-        <h4 className={`font-semibold text-sm mb-1 ${selected ? 'text-white' : 'text-zinc-300'}`}>
+        <h4 className={`font-semibold text-sm mb-1 truncate ${selected ? 'text-white' : 'text-zinc-300'}`}>
           {voice.name}
         </h4>
 
         {/* Voice description/type */}
-        <p className={`text-xs ${selected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+        <p className={`text-xs leading-tight line-clamp-2 ${selected ? 'text-zinc-300' : 'text-zinc-500'}`}>
           {voice.description || voice.type}
         </p>
 

@@ -187,11 +187,11 @@ export default function PhoneVerification() {
             </p>
 
             <form onSubmit={handleSendCode} className="space-y-6">
-              <div className="flex gap-3">
+              <div className="flex gap-3 min-w-0">
                 <select
                   value={countryCode}
                   onChange={(e) => setCountryCode(e.target.value)}
-                  className="bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                  className="flex-shrink-0 w-24 bg-zinc-900 border border-zinc-700 rounded-2xl px-3 py-4 text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
                 >
                   <option value="+1">+1</option>
                   <option value="+44">+44</option>
@@ -202,7 +202,7 @@ export default function PhoneVerification() {
                   type="tel"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-4 text-white placeholder-zinc-500 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                  className="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-4 text-white placeholder-zinc-500 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
                   placeholder="(555) 123-4567"
                   required
                 />
@@ -257,7 +257,7 @@ export default function PhoneVerification() {
             </p>
 
             <form onSubmit={handleVerifyCode} className="space-y-8">
-              <div className="flex gap-3 justify-center">
+              <div className="flex gap-2 justify-center w-full">
                 {code.map((digit, index) => (
                   <input
                     key={index}
@@ -269,7 +269,7 @@ export default function PhoneVerification() {
                     value={digit}
                     onChange={(e) => handleCodeChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-14 h-16 bg-zinc-900 border-2 border-zinc-700 rounded-2xl text-center text-2xl font-bold text-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all"
+                    className="flex-1 min-w-0 h-14 bg-zinc-900 border-2 border-zinc-700 rounded-2xl text-center text-xl font-bold text-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all"
                   />
                 ))}
               </div>

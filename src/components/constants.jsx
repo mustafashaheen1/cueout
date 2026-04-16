@@ -14,8 +14,8 @@ export const realisticVoices = [
 
 // Character voices map to Luron's available voices
 export const characterVoices = [
-  { id: 'sarah', name: 'Sophia', type: 'friendly', icon: '🌸' },
-  { id: 'michael', name: 'Alex', type: 'casual', icon: '😎' },
-  { id: 'emma', name: 'Morgan', type: 'formal', icon: '🎩' },
-  { id: 'michael', name: 'Jordan', type: 'energetic', icon: '⚡' }
+  { id: 'sophia', name: 'Sophia', type: 'friendly', icon: '🌸' },
+  { id: 'alex', name: 'Alex', type: 'casual', icon: '😎' },
+  { id: 'morgan', name: 'Morgan', type: 'formal', icon: '🎩' },
+  { id: 'jordan', name: 'Jordan', type: 'energetic', icon: '⚡' }
 ];

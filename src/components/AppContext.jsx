@@ -105,19 +105,22 @@ export function AppProvider({ children }) {
 
   // Map Supabase call_history row → consistent app shape used by History.jsx
   const normalizeHistoryItem = (item) => ({
-    id:             item.id,
-    persona:        item.persona    ?? item.persona_id    ?? 'manager',
-    personaName:    (() => { const n = item.personaName ?? item.persona_id ?? 'Unknown'; return n.charAt(0).toUpperCase() + n.slice(1); })(),
-    icon:           item.icon       ?? getPersonaIconStatic(item.persona_id),
-    completedAt:    item.completedAt ?? item.completed_at,
-    status:         item.status     ?? 'scheduled',
-    context:        item.context    ?? item.context_note  ?? '',
-    contactMethods: item.contactMethods ?? item.contact_methods ?? ['call'],
-    voice:          item.voice      ?? item.voice_id      ?? 'emma',
-    callerId:       item.callerId   ?? item.caller_id     ?? null,
-    duration:       item.duration   ?? item.duration_seconds ?? 0,
-    is_read:        item.is_read    ?? true,
-    luron_call_id:  item.luron_call_id ?? null,
+    id:              item.id,
+    persona:         item.persona         ?? item.persona_id         ?? 'manager',
+    personaName:     (() => { const n = item.personaName ?? item.persona_id ?? 'Unknown'; return n.charAt(0).toUpperCase() + n.slice(1); })(),
+    icon:            item.icon            ?? getPersonaIconStatic(item.persona_id),
+    completedAt:     item.completedAt     ?? item.completed_at,
+    status:          item.status          ?? 'scheduled',
+    context:         item.context         ?? item.context_note       ?? '',
+    contactMethods:  item.contactMethods  ?? item.contact_methods    ?? ['call'],
+    voice:           item.voice           ?? item.voice_id           ?? 'emma',
+    originalVoiceId: item.originalVoiceId ?? item.original_voice_id ?? null,
+    voiceCategory:   item.voiceCategory   ?? item.voice_category     ?? 'realistic',
+    timePreset:      item.timePreset      ?? item.time_preset        ?? '3min',
+    callerId:        item.callerId        ?? item.caller_id          ?? null,
+    duration:        item.duration        ?? item.duration_seconds   ?? 0,
+    is_read:         item.is_read         ?? true,
+    luron_call_id:   item.luron_call_id   ?? null,
   });
 
   // Normalize quick schedule from Supabase flat structure to app's nested preset structure

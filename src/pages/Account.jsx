@@ -208,32 +208,32 @@ export default function Account() {
           className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-5 mb-4"
         >
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-14 h-14 flex-shrink-0 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
               {(username || email || 'U')[0].toUpperCase()}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               {/* Username row */}
               {!isEditingUsername ? (
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className={`font-semibold text-base ${username ? 'text-white' : 'text-zinc-500'}`}>
+                <div className="flex items-center gap-2 mb-1 min-w-0">
+                  <h3 className={`font-semibold text-base truncate ${username ? 'text-white' : 'text-zinc-500'}`}>
                     {username || 'Add your name'}
                   </h3>
                   <button
                     onClick={() => { setTempUsername(username); setUsernameError(''); setIsEditingUsername(true); }}
-                    className="p-1 hover:bg-zinc-800 rounded transition-colors"
+                    className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
                   >
                     <Edit2 className="w-3 h-3 text-zinc-500" />
                   </button>
                 </div>
               ) : (
                 <div className="mb-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <input
                       type="text"
                       value={tempUsername}
                       onChange={(e) => { setTempUsername(e.target.value); setUsernameError(''); }}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setIsEditingUsername(false); }}
-                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-red-500/50 min-w-0"
+                      className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-red-500/50"
                       placeholder="Your name"
                       maxLength={40}
                       autoFocus
@@ -255,12 +255,12 @@ export default function Account() {
                   {usernameError && <p className="text-[10px] text-red-400 mt-1">{usernameError}</p>}
                 </div>
               )}
-              <div className="text-xs text-zinc-400">
-                <div className="flex items-center gap-2">
+              <div className="text-xs text-zinc-400 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
                   <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                   {!isEditingEmail ? (
                     <>
-                      <span className="truncate">{email}</span>
+                      <span className="truncate min-w-0 flex-1">{email}</span>
                       <button
                         onClick={() => { setTempEmail(email); setEmailError(''); setEmailSuccess(''); setIsEditingEmail(true); }}
                         className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"

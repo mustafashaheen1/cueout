@@ -6,7 +6,7 @@ export default function TimeChip({ label, selected, onClick }) {
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
-      className={`relative py-2.5 px-3 rounded-full text-sm font-semibold transition-all duration-200 ${
+      className={`relative w-full py-2.5 rounded-full text-sm font-semibold overflow-hidden transition-all duration-200 ${
         selected
           ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
           : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'

@@ -44,6 +44,39 @@ function generateEmailSubject(persona, note) {
   return defaults[persona] || 'Quick Update';
 }
 
+/**
+ * Generate a full email body from persona + note.
+ * Luron sends custom_instruction verbatim as the email body for email type.
+ */
+function generateEmailBody(persona, note) {
+  const greetings = {
+    manager:     'Hi,',
+    coordinator: 'Hello,',
+    friend:      'Hey!',
+    mom:         'Hi sweetheart,',
+    doctor:      'Dear Patient,',
+    boss:        'Hello,',
+    service:     'Dear Valued Customer,',
+  };
+  const closings = {
+    manager:     'Please respond at your earliest convenience.\n\nBest regards,\nYour Manager',
+    coordinator: 'Please confirm your availability.\n\nBest regards,\nYour Coordinator',
+    friend:      'Let me know what works for you!\n\nTalk soon,\nA Friend',
+    mom:         'Love you and hope to hear from you soon.\n\nLove,\nMom',
+    doctor:      'If you have any questions, please do not hesitate to reach out.\n\nKind regards,\nYour Healthcare Team',
+    boss:        'Please get back to me when you have a moment.\n\nRegards,\nYour Boss',
+    service:     'Thank you for your attention to this matter.\n\nBest regards,\nCueOut Support',
+  };
+
+  const greeting = greetings[persona] || 'Hello,';
+  const closing  = closings[persona]  || 'Best regards,\nCueOut';
+  const body     = note && note.trim()
+    ? note.trim()
+    : 'I wanted to reach out regarding an important matter that requires your attention.';
+
+  return `${greeting}\n\n${body}\n\n${closing}`;
+}
+
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 
 /**
@@ -93,7 +126,7 @@ export async function scheduleCall(params) {
       email_address:      recipientEmail,
       when:               scheduledTime,
       persona_type:       selectedPersona,
-      custom_instruction: note || '',
+      custom_instruction: generateEmailBody(selectedPersona, note),
       advanced_settings: {
         email_subject: generateEmailSubject(selectedPersona, note),
       },

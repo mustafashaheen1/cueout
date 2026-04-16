@@ -48,10 +48,11 @@ const backgroundSounds = [
 export default function PersonaSettings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getPersonaConfig, updatePersonaConfig, updatePersona, deletePersona } = usePersona();
+  const { getPersonaConfig, updatePersonaConfig, updatePersona, deletePersona, addPersona } = usePersona();
   
   const initialPersona = location.state?.persona || { id: 'manager', name: 'Manager', icon: '💼' };
-  
+  const isNew = location.state?.isNew === true;
+
   const isCustomPersona = !initialPersona.is_default;
   const [name, setName] = useState(initialPersona.name);
   const [icon, setIcon] = useState(initialPersona.icon);
@@ -79,7 +80,12 @@ export default function PersonaSettings() {
   };
 
   const handleSave = () => {
-    updatePersona(initialPersona.id, { name, icon, ...(isCustomPersona && { luron_persona_type: luronPersonaType }) });
+    if (isNew) {
+      // First time save — add the persona with final name/icon
+      addPersona({ ...initialPersona, name, icon, luron_persona_type: luronPersonaType });
+    } else {
+      updatePersona(initialPersona.id, { name, icon, ...(isCustomPersona && { luron_persona_type: luronPersonaType }) });
+    }
     updatePersonaConfig(initialPersona.id, {
       tone: selectedTone,
       background: selectedBackground,
@@ -242,7 +248,7 @@ export default function PersonaSettings() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {toneOptions.map((tone) => (
                 <ToneSelector
                   key={tone.id}
@@ -265,7 +271,7 @@ export default function PersonaSettings() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {backgroundSounds.map((sound) => (
                 <BackgroundSoundSelector
                   key={sound.id}

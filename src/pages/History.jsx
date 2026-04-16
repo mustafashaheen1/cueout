@@ -168,19 +168,20 @@ export default function History() {
   };
 
   const handleRepeatSetup = (call) => {
-    const original = call.originalState || {};
-    navigate(createPageUrl('Home'), { 
-      state: { 
+    navigate(createPageUrl('Home'), {
+      state: {
         repeatSetup: {
-          persona: original.selectedPersona || call.persona,
-          note: original.note || call.context,
-          contactMethods: original.contactMethods || call.contactMethods,
-          voice: original.selectedVoice || call.voice,
-          callerId: original.selectedCallerID || call.callerId,
-          time: original.selectedTime || '3min',
-          voiceCategory: original.voiceCategory || 'realistic'
+          persona:        call.persona,
+          note:           call.context,
+          contactMethods: call.contactMethods,
+          // Use original UI voice ID (e.g. 'michael') not the Luron-mapped DB ID (e.g. 'james')
+          voice:          call.originalVoiceId || call.voice,
+          callerId:       call.callerId,
+          // Custom time is in the past — can't repeat it, default to 3min
+          time:           call.timePreset === 'custom' ? '3min' : (call.timePreset || '3min'),
+          voiceCategory:  call.voiceCategory || 'realistic',
         }
-      } 
+      }
     });
   };
 
@@ -327,12 +328,12 @@ export default function History() {
               ))}
 
               {/* Add New Placeholder */}
-              <button 
+              <button
                 onClick={handleAddCustomPreset}
-                className="flex-shrink-0 w-24 flex flex-col items-center gap-3 snap-start group opacity-50 hover:opacity-100 transition-opacity"
+                className="flex-shrink-0 w-24 flex flex-col items-center gap-3 snap-start"
               >
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border-2 border-dashed border-zinc-800 flex items-center justify-center group-hover:border-zinc-700 transition-colors">
-                  <Plus className="w-6 h-6 text-zinc-600 group-hover:text-zinc-400" />
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border-2 border-dashed border-zinc-800 flex items-center justify-center">
+                  <Plus className="w-6 h-6 text-zinc-600" />
                 </div>
                 <p className="text-xs font-medium text-zinc-500 text-center">New</p>
               </button>

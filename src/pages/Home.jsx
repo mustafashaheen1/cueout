@@ -20,7 +20,12 @@ import { scheduleCall as scheduleCallAPI, getUserId } from '../api/luronApi';
 // Personas are now managed in PersonaContext
 
 // Map app voice IDs to valid Supabase voices table IDs
-const VOICE_DB_MAP = { emma: 'emma', michael: 'james', sarah: 'emma' };
+const VOICE_DB_MAP = {
+  // Realistic voices
+  emma: 'emma', michael: 'james', sarah: 'emma',
+  // Character voices (mapped to same Luron voices)
+  sophia: 'emma', alex: 'james', morgan: 'emma', jordan: 'james'
+};
 const toDbVoiceId = (id) => VOICE_DB_MAP[id] || 'emma';
 
 export default function Home() {
@@ -35,7 +40,8 @@ export default function Home() {
   const [selectedTime, setSelectedTime] = useState('3min');
   const [selectedPersona, setSelectedPersona] = useState('manager');
   const [orderedPersonas, setOrderedPersonas] = useState(personas);
-  const [selectedVoice, setSelectedVoice] = useState('emma');
+  const [selectedRealisticVoice, setSelectedRealisticVoice] = useState('emma');
+  const [selectedCharacterVoice, setSelectedCharacterVoice] = useState('sophia');
   const [selectedCallerID, setSelectedCallerID] = useState(null);
   const [contactMethods, setContactMethods] = useState(['call']);
   const [note, setNote] = useState('');
@@ -47,6 +53,7 @@ export default function Home() {
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [showCallerIDSelector, setShowCallerIDSelector] = useState(false);
   const [voiceCategory, setVoiceCategory] = useState('realistic');
+  const selectedVoice = voiceCategory === 'realistic' ? selectedRealisticVoice : selectedCharacterVoice;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
 
@@ -133,7 +140,8 @@ export default function Home() {
       reorder(pid);
       setNote(setup.note || '');
       setContactMethods(setup.contactMethods || ['call']);
-      setSelectedVoice(setup.voice || 'emma');
+      if (setup.voiceCategory === 'character') setSelectedCharacterVoice(setup.voice || 'sophia');
+      else setSelectedRealisticVoice(setup.voice || 'emma');
       setSelectedCallerID(setup.callerId || null);
       setSelectedTime(setup.time || '3min');
       if (setup.voiceCategory) setVoiceCategory(setup.voiceCategory);
@@ -146,7 +154,8 @@ export default function Home() {
       reorder(pid);
       setNote(setup.note || '');
       setContactMethods(setup.contactMethods || ['call']);
-      setSelectedVoice(setup.voice || 'emma');
+      if (setup.voiceCategory === 'character') setSelectedCharacterVoice(setup.voice || 'sophia');
+      else setSelectedRealisticVoice(setup.voice || 'emma');
       setSelectedCallerID(setup.callerId || null);
       setSelectedTime(setup.time || '3min');
       if (setup.voiceCategory) setVoiceCategory(setup.voiceCategory);
@@ -173,9 +182,8 @@ export default function Home() {
       icon: '✨',
       color: 'bg-purple-500/10 text-purple-500'
     };
-    addPersona(newPersona);
-    handlePersonaSelect(newId);
-    navigate(createPageUrl('PersonaSettings'), { state: { persona: newPersona } });
+    // Do NOT add persona yet — only add when user taps save (tick) in PersonaSettings
+    navigate(createPageUrl('PersonaSettings'), { state: { persona: newPersona, isNew: true } });
   };
 
   const handleSchedule = () => {
@@ -226,6 +234,7 @@ export default function Home() {
           icon:             persona.icon,
           originalState: {
             selectedPersona, selectedTime, selectedVoice,
+            selectedRealisticVoice, selectedCharacterVoice,
             contactMethods, note, selectedCallerID, voiceCategory, orderedPersonas
           }
         });
@@ -277,6 +286,7 @@ export default function Home() {
           icon:             persona.icon,
           originalState: {
             selectedPersona, selectedTime, selectedVoice,
+            selectedRealisticVoice, selectedCharacterVoice,
             contactMethods, note, selectedCallerID, voiceCategory, orderedPersonas
           }
         };
@@ -286,13 +296,16 @@ export default function Home() {
         // always available on the upcoming call before the timer could fire.
         // luron_call_id is null for now — updated once Luron responds.
         const historyItem = await addToHistory({
-          persona_id:       selectedPersona,
-          voice_id:         toDbVoiceId(selectedVoice),
-          caller_id:        selectedCallerID?.id || null,
-          contact_methods:  contactMethods,
-          context_note:     note || '',
-          status:           'scheduled',
-          duration_seconds: selectedTime === '3min' ? 180 : selectedTime === '5min' ? 300 : 0,
+          persona_id:        selectedPersona,
+          voice_id:          toDbVoiceId(selectedVoice),
+          original_voice_id: selectedVoice,
+          voice_category:    voiceCategory,
+          time_preset:       selectedTime,
+          caller_id:         selectedCallerID?.id || null,
+          contact_methods:   contactMethods,
+          context_note:      note || '',
+          status:            'scheduled',
+          duration_seconds:  selectedTime === '3min' ? 180 : selectedTime === '5min' ? 300 : 0,
         });
 
         // Link history_id to upcoming call right away (UI-only, not a DB column)
@@ -396,11 +409,17 @@ export default function Home() {
       const s = call.originalState;
       setSelectedPersona(s.selectedPersona);
       setSelectedTime(s.selectedTime);
-      setSelectedVoice(s.selectedVoice);
+      setVoiceCategory(s.voiceCategory);
+      if (s.selectedRealisticVoice) setSelectedRealisticVoice(s.selectedRealisticVoice);
+      if (s.selectedCharacterVoice) setSelectedCharacterVoice(s.selectedCharacterVoice);
+      // fallback for calls saved before this change
+      if (!s.selectedRealisticVoice && !s.selectedCharacterVoice && s.selectedVoice) {
+        if (s.voiceCategory === 'character') setSelectedCharacterVoice(s.selectedVoice);
+        else setSelectedRealisticVoice(s.selectedVoice);
+      }
       setContactMethods(s.contactMethods);
       setNote(s.note);
       setSelectedCallerID(s.selectedCallerID);
-      setVoiceCategory(s.voiceCategory);
       if (s.orderedPersonas) setOrderedPersonas(s.orderedPersonas);
 
       setEditingCallId(callId);
@@ -449,11 +468,11 @@ export default function Home() {
       <div className="relative w-full max-w-lg mx-auto pt-12">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0 mr-2">
               <h1 className="text-3xl font-bold text-white">CueOut</h1>
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-lg shadow-red-500/50 animate-pulse" />
             </div>
-            
+
             <button
               onClick={() => navigate(createPageUrl('Paywall'))}
               className="flex items-center gap-2 bg-zinc-900/50 backdrop-blur-md border border-green-500/50 hover:border-green-400 hover:bg-zinc-800/50 rounded-full py-1.5 pl-4 pr-1.5 transition-all group shadow-[0_0_15px_rgba(34,197,94,0.1)]">
@@ -548,13 +567,13 @@ export default function Home() {
 
                   <button
                     onClick={handleAddPersona}
-                    className="relative group flex-shrink-0">
+                    className="relative flex-shrink-0">
 
-                    <div className="bg-[#121212] p-3 rounded-2xl w-20 transition-all border-2 border-dashed border-zinc-800 hover:border-zinc-600 group-hover:bg-zinc-900/50">
-                      <div className="w-14 h-14 mx-auto mb-2 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center group-hover:border-zinc-700 transition-colors">
-                        <Plus className="w-6 h-6 text-zinc-500 group-hover:text-zinc-400" />
+                    <div className="bg-[#121212] p-3 rounded-2xl w-20 border-2 border-dashed border-zinc-800">
+                      <div className="w-14 h-14 mx-auto mb-2 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                        <Plus className="w-6 h-6 text-zinc-500" />
                       </div>
-                      <p className="text-xs font-semibold text-center text-zinc-500 group-hover:text-zinc-400 truncate">Add</p>
+                      <p className="text-xs font-semibold text-center text-zinc-500 truncate">Add</p>
                     </div>
                   </button>
                 </div>
@@ -775,7 +794,7 @@ export default function Home() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[380px] bg-zinc-900 rounded-3xl p-6 max-h-[600px] overflow-y-auto"
+              className="w-full max-w-[380px] bg-zinc-900 rounded-3xl p-4 max-h-[80dvh] overflow-y-auto"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
 
                 <div className="flex items-center justify-between mb-6">
@@ -811,14 +830,15 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {allVoices.map((voice) =>
                 <VoiceCard
                   key={voice.id}
                   voice={voice}
                   selected={selectedVoice === voice.id}
                   onClick={() => {
-                    setSelectedVoice(voice.id);
+                    if (voiceCategory === 'realistic') setSelectedRealisticVoice(voice.id);
+                    else setSelectedCharacterVoice(voice.id);
                     setShowVoiceSelector(false);
                   }} />
 
@@ -849,7 +869,7 @@ export default function Home() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[380px] bg-zinc-900 rounded-3xl p-6">
+              className="w-full justify-center items-center max-w-[380px] bg-zinc-900 rounded-3xl p-4">
 
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-white">Custom Time</h3>
@@ -861,29 +881,30 @@ export default function Home() {
                   </button>
                 </div>
                 
-                <div className="mb-2">
-                  <input
-                    type="datetime-local"
-                    value={customDate ? toDatetimeLocal(customDate) : ''}
-                    min={toDatetimeLocal(new Date(Date.now() + 60 * 1000))}
-                    max={toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (!val) return;
-                      const selected = new Date(val).getTime();
-                      const now = Date.now();
-                      if (selected <= now) {
-                        setCustomTimeError('Please select a future time.');
-                      } else if (selected > now + 7 * 24 * 60 * 60 * 1000) {
-                        setCustomTimeError('Maximum 7 days in advance.');
-                      } else {
-                        setCustomTimeError('');
-                      }
-                      setCustomDate(new Date(val).toISOString());
-                    }}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
-                    style={{ colorScheme: 'dark', fontSize: '16px' }}
-                  />
+                <div className="mb-4 flex justify-center items-center">
+                 <input
+  type="datetime-local"
+  value={customDate ? toDatetimeLocal(customDate) : ''}
+  min={toDatetimeLocal(new Date(Date.now() + 60 * 1000))}
+  max={toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))}
+  onChange={(e) => {
+    const val = e.target.value;
+    if (!val) return;
+    const selected = new Date(val).getTime();
+    const now = Date.now();
+
+    if (selected <= now) {
+      setCustomTimeError('Please select a future time.');
+    } else if (selected > now + 7 * 24 * 60 * 60 * 1000) {
+      setCustomTimeError('Maximum 7 days in advance.');
+    } else {
+      setCustomTimeError('');
+    }
+
+    setCustomDate(new Date(val).toISOString());
+  }}
+  className="w-full max-w-[300px] bg-zinc-800 border border-zinc-700 rounded-2xl px-3 py-3 text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+/>
                 </div>
 
                 {customTimeError ? (

@@ -67,16 +67,19 @@ export const addToHistory = (call) =>
   withAuth((userId) =>
     supabaseQuery(() =>
       supabase.from('call_history').insert([{
-        user_id:          userId,
-        persona_id:       call.persona_id       || 'manager',
-        voice_id:         call.voice_id         || 'emma',
-        caller_id:        call.caller_id        ?? null,
-        contact_methods:  call.contact_methods  || ['call'],
-        context_note:     call.context_note     || '',
-        status:           call.status           || 'answered',
-        duration_seconds: call.duration_seconds ?? null,
-        scheduled_time:   call.scheduled_time   ?? null,
-        completed_at:     new Date().toISOString(),
+        user_id:           userId,
+        persona_id:        call.persona_id        || 'manager',
+        voice_id:          call.voice_id          || 'emma',
+        original_voice_id: call.original_voice_id ?? null,
+        voice_category:    call.voice_category    ?? 'realistic',
+        time_preset:       call.time_preset       ?? '3min',
+        caller_id:         call.caller_id         ?? null,
+        contact_methods:   call.contact_methods   || ['call'],
+        context_note:      call.context_note      || '',
+        status:            call.status            || 'answered',
+        duration_seconds:  call.duration_seconds  ?? null,
+        scheduled_time:    call.scheduled_time    ?? null,
+        completed_at:      new Date().toISOString(),
       }]).select().single()
     )
   );
