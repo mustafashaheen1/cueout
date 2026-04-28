@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { cancelSubscription } from '../api/subscriptions';
 import PullToRefresh from '../components/PullToRefresh';
+import InfoModal from '../components/InfoModal';
 import {
   User,
   Mail,
@@ -24,8 +25,90 @@ import {
   Edit2,
   X,
   Volume2,
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  Users,
+  Zap,
+  Star
 } from 'lucide-react';
+
+// ─── How CueOut Works content ─────────────────────────────────────────────────
+const HOW_IT_WORKS_SECTIONS = [
+  {
+    icon: Phone,
+    title: 'What is CueOut?',
+    color: 'text-red-400',
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/20',
+    content: 'CueOut is a smart call scheduling app that lets you set up realistic-sounding phone calls to arrive at exactly the right moment. Whether you need an exit from an awkward situation, a reminder during a meeting, or a confidence boost — CueOut has you covered.',
+  },
+  {
+    icon: Clock,
+    title: 'Scheduling a Call',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/20',
+    content: 'Tap the schedule button on the Home screen and choose when you want the call to come in — from 1 minute to several hours from now. You can also use Quick Presets for your most-used timings so you can schedule a call in seconds.',
+  },
+  {
+    icon: Users,
+    title: 'Personas',
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/20',
+    content: 'Choose from a variety of AI personas to customize who is calling you. Each persona has a unique voice and personality. You can configure persona-specific settings like background sounds, tone, and custom phrases in the Persona Settings screen.',
+  },
+  {
+    icon: Zap,
+    title: 'Quick Presets',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    border: 'border-yellow-500/20',
+    content: 'Save your favourite call configurations as Quick Presets so you can repeat them instantly. Access presets from the History screen. Each preset stores the persona, timing, context note, and caller ID so your call is ready to go in one tap.',
+  },
+  {
+    icon: Star,
+    title: 'Caller IDs',
+    color: 'text-green-400',
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/20',
+    content: 'CueOut uses a set of preset caller IDs that appear on your screen when the call comes in. You can give each one a custom name from Account → Manage Caller IDs, so the incoming call looks even more believable.',
+  },
+  {
+    icon: Shield,
+    title: 'Your Privacy',
+    color: 'text-zinc-400',
+    bg: 'bg-zinc-800/50',
+    border: 'border-zinc-700',
+    content: 'Your data is stored securely and is never sold to third parties. Call logs are kept only to improve your experience and can be deleted at any time from the History screen. See our Privacy Policy for full details.',
+  },
+];
+
+// ─── Privacy Policy content ───────────────────────────────────────────────────
+const PRIVACY_SECTIONS = [
+  { title: '1. Information We Collect', content: `We collect information you provide directly to us, such as when you create an account, update your profile, or contact us for support. This includes your name, email address, phone number, and any other information you choose to provide.\n\nWe also automatically collect certain information when you use our services, including log data, device information, and usage data such as the features you use and the time spent on the app.` },
+  { title: '2. How We Use Your Information', content: `We use the information we collect to:\n\n• Provide, maintain, and improve our services\n• Process transactions and send related information\n• Send you technical notices and support messages\n• Respond to your comments and questions\n• Monitor and analyse usage patterns and trends\n• Detect and prevent fraudulent or abusive activity` },
+  { title: '3. Sharing of Information', content: `We do not sell, trade, or otherwise transfer your personal information to outside parties. This does not include trusted third parties who assist us in operating our app, conducting our business, or servicing you, as long as those parties agree to keep this information confidential.\n\nWe may release your information when we believe it is appropriate to comply with the law, enforce our site policies, or protect ours or others' rights, property, or safety.` },
+  { title: '4. Data Retention', content: `We retain your personal information for as long as your account is active or as needed to provide you services. You may delete your account at any time, and we will delete your personal information within 30 days of account deletion, except where we are required by law to retain it longer.` },
+  { title: '5. Security', content: `We take reasonable measures to help protect your personal information from loss, theft, misuse, and unauthorised access. However, no security system is impenetrable, and we cannot guarantee the security of our systems 100%. In the event of a breach, we will notify you in accordance with applicable law.` },
+  { title: "6. Children's Privacy", content: `CueOut is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13. If we discover that a child under 13 has provided us with personal information, we will promptly delete such information from our servers.` },
+  { title: '7. Changes to This Policy', content: `We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last Updated" date. Your continued use of the app after we make changes indicates your acceptance of those changes.` },
+  { title: '8. Contact Us', content: `If you have any questions about this Privacy Policy, please contact us through the Support section of the app or at the contact details provided on our website.` },
+];
+
+// ─── Terms of Use content ─────────────────────────────────────────────────────
+const TERMS_SECTIONS = [
+  { title: '1. Acceptance of Terms', content: `By downloading, installing, or using the CueOut application, you agree to be bound by these Terms of Use. If you do not agree to these terms, do not use the app. We reserve the right to update these terms at any time, and your continued use of the app constitutes acceptance of those changes.` },
+  { title: '2. Use of the Service', content: `CueOut is provided for personal, non-commercial use. You agree to use the service only for lawful purposes and in a manner that does not infringe the rights of others. You may not use CueOut to:\n\n• Harass, stalk, or harm any person\n• Impersonate any person or entity\n• Engage in any fraudulent or deceptive activity\n• Violate any applicable local, national, or international law` },
+  { title: '3. Account Registration', content: `To use certain features of CueOut you must register for an account. You agree to provide accurate, current, and complete information during registration and to keep your account information up to date. You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account.` },
+  { title: '4. Subscriptions and Billing', content: `CueOut offers both free and paid subscription tiers. Paid subscriptions are billed on a recurring basis through your Apple ID. You can manage or cancel your subscription at any time via iPhone Settings → Apple ID → Subscriptions. Refunds are handled in accordance with Apple's refund policies. We reserve the right to change subscription pricing with reasonable notice.` },
+  { title: '5. Intellectual Property', content: `All content, features, and functionality of CueOut — including but not limited to text, graphics, logos, icons, and software — are the exclusive property of CueOut and are protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written consent.` },
+  { title: '6. Disclaimer of Warranties', content: `CueOut is provided "as is" and "as available" without warranties of any kind, either express or implied. We do not warrant that the service will be uninterrupted, error-free, or free of viruses or other harmful components. Use of the service is at your sole risk.` },
+  { title: '7. Limitation of Liability', content: `To the fullest extent permitted by law, CueOut shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of the service. Our total liability to you for any claims shall not exceed the amount you paid to us in the twelve months preceding the claim.` },
+  { title: '8. Termination', content: `We reserve the right to suspend or terminate your account at any time for any reason, including if we believe you have violated these Terms of Use. Upon termination, your right to use the service will immediately cease. Provisions of these terms that by their nature should survive termination shall survive.` },
+  { title: '9. Governing Law', content: `These Terms of Use shall be governed by and construed in accordance with applicable law. Any disputes arising under these terms shall be subject to the exclusive jurisdiction of the courts in the applicable jurisdiction.` },
+  { title: '10. Contact', content: `If you have any questions about these Terms of Use, please contact us through the Support section of the app.` },
+];
 
 export default function Account() {
   const [creatorMode, setCreatorMode] = useState(false);
@@ -50,6 +133,7 @@ export default function Account() {
   const [showCallerIDEditor, setShowCallerIDEditor] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [infoModal, setInfoModal] = useState(null); // 'how' | 'privacy' | 'terms' | null
   const navigate = useNavigate();
   const { callerIDs, updateCallerIDName, setIsTabBarHidden, subscription, refreshSubscription } = useApp();
   const { user, signOut, checkUser } = useAuth();
@@ -493,7 +577,7 @@ export default function Account() {
           )}
         </motion.div>
 
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -561,7 +645,7 @@ export default function Account() {
               </motion.div>
             </AnimatePresence>
           )}
-        </motion.div>
+        </motion.div> */}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -587,7 +671,7 @@ export default function Account() {
             </div>
           </button>
           
-          <button
+          {/* <button
             onClick={() => setShowRingtoneSelector(true)}
             className="w-full flex items-center gap-3 p-4 hover:bg-zinc-800/50 transition-colors"
           >
@@ -595,7 +679,7 @@ export default function Account() {
             <span className="flex-1 text-left font-medium text-sm text-white">Ringtone & Vibration</span>
             <span className="text-xs text-zinc-400">{selectedRingtone}</span>
             <ChevronRight className="w-5 h-5 text-zinc-600" />
-          </button>
+          </button> */}
 
 
         </motion.div>
@@ -609,17 +693,17 @@ export default function Account() {
           <SettingsItem
             icon={HelpCircle}
             label="How CueOut works"
-            onClick={() => navigate(createPageUrl('HowCueOutWorks'))}
+            onClick={() => setInfoModal('how')}
           />
           <SettingsItem
             icon={Shield}
             label="Privacy Policy"
-            onClick={() => navigate(createPageUrl('PrivacyPolicy'))}
+            onClick={() => setInfoModal('privacy')}
           />
           <SettingsItem
             icon={Shield}
             label="Terms of Use"
-            onClick={() => navigate(createPageUrl('TermsOfUse'))}
+            onClick={() => setInfoModal('terms')}
           />
           <SettingsItem
             icon={Mail}
@@ -772,6 +856,68 @@ export default function Account() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* How CueOut Works modal */}
+      <InfoModal
+        isOpen={infoModal === 'how'}
+        onClose={() => setInfoModal(null)}
+        title="How CueOut Works"
+      >
+        <div className="space-y-4 pb-4">
+          {HOW_IT_WORKS_SECTIONS.map(({ icon: Icon, title, color, bg, border, content }) => (
+            <div key={title} className={`rounded-2xl border p-4 ${bg} ${border}`}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 rounded-xl ${bg} border ${border}`}>
+                  <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+                <h3 className="font-semibold text-white text-sm">{title}</h3>
+              </div>
+              <p className="text-sm text-zinc-400 leading-relaxed">{content}</p>
+            </div>
+          ))}
+          {/* <p className="text-center text-xs text-zinc-600 pt-2">Content coming soon — placeholder text.</p> */}
+        </div>
+      </InfoModal>
+
+      {/* Privacy Policy modal */}
+      <InfoModal
+        isOpen={infoModal === 'privacy'}
+        onClose={() => setInfoModal(null)}
+        title="Privacy Policy"
+      >
+        <div className="space-y-6 pb-4">
+          <p className="text-xs text-zinc-500">Last updated: [Date pending] — Placeholder content only.</p>
+          {PRIVACY_SECTIONS.map(({ title, content }) => (
+            <div key={title}>
+              <h3 className="font-semibold text-white text-sm mb-2">{title}</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed whitespace-pre-line">{content}</p>
+            </div>
+          ))}
+          {/* <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-2xl">
+            <p className="text-xs text-zinc-500 text-center">Final Privacy Policy will be provided by the client.</p>
+          </div> */}
+        </div>
+      </InfoModal>
+
+      {/* Terms of Use modal */}
+      <InfoModal
+        isOpen={infoModal === 'terms'}
+        onClose={() => setInfoModal(null)}
+        title="Terms of Use"
+      >
+        <div className="space-y-6 pb-4">
+          <p className="text-xs text-zinc-500">Last updated: [Date pending] — Placeholder content only.</p>
+          {TERMS_SECTIONS.map(({ title, content }) => (
+            <div key={title}>
+              <h3 className="font-semibold text-white text-sm mb-2">{title}</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed whitespace-pre-line">{content}</p>
+            </div>
+          ))}
+          {/* <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-2xl">
+            <p className="text-xs text-zinc-500 text-center">Final Terms of Use will be provided by the client.</p>
+          </div> */}
+        </div>
+      </InfoModal>
     </div>
     </PullToRefresh>
   );

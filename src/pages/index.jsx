@@ -16,12 +16,6 @@ import Paywall from "./Paywall";
 
 import PersonaSettings from "./PersonaSettings";
 
-import HowCueOutWorks from "./HowCueOutWorks";
-
-import PrivacyPolicy from "./PrivacyPolicy";
-
-import TermsOfUse from "./TermsOfUse";
-
 import Support from "./Support";
 
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
@@ -46,12 +40,6 @@ const PAGES = {
     Paywall: Paywall,
     
     PersonaSettings: PersonaSettings,
-
-    HowCueOutWorks: HowCueOutWorks,
-
-    PrivacyPolicy: PrivacyPolicy,
-
-    TermsOfUse: TermsOfUse,
 
     Support: Support,
 
@@ -131,12 +119,6 @@ function PagesContent() {
                 <Route path="/Paywall" element={<Paywall />} />
 
                 <Route path="/PersonaSettings" element={<PersonaSettings />} />
-
-                <Route path="/HowCueOutWorks" element={<HowCueOutWorks />} />
-
-                <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
-
-                <Route path="/TermsOfUse" element={<TermsOfUse />} />
 
                 <Route path="/Support" element={<Support />} />
 

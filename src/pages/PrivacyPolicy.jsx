@@ -69,11 +69,11 @@ export default function PrivacyPolicy() {
           ))}
         </div>
 
-        <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
+        {/* <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
           <p className="text-xs text-zinc-500 text-center leading-relaxed">
             This is placeholder content. The final Privacy Policy will be provided by the client.
           </p>
-        </div>
+        </div> */}
       </div>
     </div>
   );

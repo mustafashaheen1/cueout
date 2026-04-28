@@ -96,7 +96,7 @@ export default function HowCueOutWorks() {
         ))}
 
         <p className="text-center text-xs text-zinc-600 pt-4">
-          Content coming soon — this is placeholder text.
+          {/* Content coming soon — this is placeholder text. */}
         </p>
       </div>
     </div>
