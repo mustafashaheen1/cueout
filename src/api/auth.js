@@ -1,4 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
+import { signInWithAppleNative } from '../lib/appleAuth';
 
 // ============================================================================
 // AUTHENTICATION API
@@ -31,13 +33,35 @@ export const signIn = async (email, password) => {
 };
 
 /**
- * Sign in with Apple (OAuth)
+ * Sign in with Apple.
+ * On native iOS: uses ASAuthorizationAppleIDProvider → signInWithIdToken (no browser).
+ * On web/dev: falls back to OAuth redirect.
  */
 export const signInWithApple = async () => {
+  if (Capacitor.isNativePlatform()) {
+    const { identityToken, nonce, fullName } = await signInWithAppleNative();
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: identityToken,
+      nonce,
+    });
+    if (error) throw error;
+
+    // Apple only sends fullName on the FIRST sign-in per device.
+    // Save it immediately to user_metadata before it's gone.
+    if (fullName?.firstName || fullName?.lastName) {
+      const displayName = [fullName.firstName, fullName.lastName].filter(Boolean).join(' ');
+      await supabase.auth.updateUser({ data: { full_name: displayName } });
+    }
+
+    return data;
+  }
+
+  // Web fallback (browser / dev mode)
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'apple',
+    options: { redirectTo: window.location.origin },
   });
-
   if (error) throw error;
   return data;
 };

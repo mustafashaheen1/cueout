@@ -78,7 +78,7 @@ export default function CallerIDSelector({ selected, onSelect, onClose }) {
                   <p className={`font-semibold ${selected?.id === callerId.id ? 'text-white' : 'text-zinc-200'}`}>
                     {callerId.name}
                   </p>
-                  <p className="text-sm text-zinc-400">{callerId.number}</p>
+                  <p className="text-sm text-zinc-400">{callerId.phone_number || callerId.number}</p>
                 </div>
                 {selected?.id === callerId.id && (
                   <Check className="w-5 h-5 text-red-500" />

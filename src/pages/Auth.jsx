@@ -63,6 +63,11 @@ export default function Auth() {
       await signInWithApple();
       // Don't navigate here - let the useEffect handle it based on verification status
     } catch (err) {
+      if (err.message === 'USER_CANCELLED') {
+        // User dismissed the sheet — silent, no error shown
+        setIsLoading(false);
+        return;
+      }
       console.error('Apple sign in error:', err);
       setError(err.message || 'Failed to sign in with Apple');
     } finally {

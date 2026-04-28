@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { supabaseQuery, withAuth } from '../lib/supabaseMiddleware';
+import { getActiveSubscription as getActiveIAPSubscription, getBillingCycle } from '../lib/iap';
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
@@ -39,13 +40,14 @@ export const decrementUsage = (methodType) =>
     )
   );
 
-export const updateSubscriptionTier = (tier, billingCycle, stripeSubscriptionId = null) =>
+// Used internally and by the validate-iap Edge Function result.
+// Direct callers (Paywall) should use grantIAPSubscription() instead.
+export const updateSubscriptionTier = (tier, billingCycle, appleTransactionId = null) =>
   withAuth(async (userId) => {
     const limits = tier === 'plus'
       ? { calls_limit: 20, texts_limit: 999999 }
       : { calls_limit: 2, texts_limit: 0 };
 
-    // upsert handles both new users (no row yet) and existing users
     const data = await supabaseQuery(() =>
       supabase.from('subscriptions').upsert({
         user_id: userId,
@@ -55,7 +57,7 @@ export const updateSubscriptionTier = (tier, billingCycle, stripeSubscriptionId 
         calls_remaining: limits.calls_limit,
         texts_limit: limits.texts_limit,
         texts_remaining: limits.texts_limit,
-        stripe_subscription_id: stripeSubscriptionId,
+        apple_transaction_id: appleTransactionId,
         started_at: new Date().toISOString(),
         expires_at: billingCycle === 'monthly'
           ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -71,13 +73,60 @@ export const updateSubscriptionTier = (tier, billingCycle, stripeSubscriptionId 
     return data;
   });
 
-export const cancelSubscription = () =>
-  withAuth((userId) =>
-    supabaseQuery(() =>
-      supabase.from('subscriptions').update({ auto_renew: false })
-        .eq('user_id', userId).select().single()
-    )
+// ─── IAP Purchase Grant ────────────────────────────────────────────────────────
+// Called after a successful StoreKit purchase. Sends the JWS transaction to the
+// Edge Function which validates it with Apple and writes the subscription to DB.
+export const grantIAPSubscription = async (jwsRepresentation, isMock = false) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-iap`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ jwsRepresentation, isMock }),
+    }
   );
+
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Failed to validate purchase');
+  return result;
+};
+
+// ─── Sync IAP on App Launch ───────────────────────────────────────────────────
+// Checks StoreKit for an active subscription and syncs it to DB if needed.
+// Call this on app mount to catch renewals that happened while app was closed.
+export const syncIAPOnLaunch = async (currentSubscription) => {
+  try {
+    const active = await getActiveIAPSubscription();
+    if (!active?.jwsRepresentation) return false; // no active IAP
+
+    // If DB already shows plus and not expired, no sync needed
+    const alreadySynced =
+      currentSubscription?.tier === 'plus' &&
+      currentSubscription?.expires_at &&
+      new Date(currentSubscription.expires_at) > new Date();
+
+    if (alreadySynced) return false;
+
+    // DB is out of sync — re-grant from the active StoreKit transaction
+    await grantIAPSubscription(active.jwsRepresentation, false);
+    return true; // synced
+  } catch {
+    return false;
+  }
+};
+
+// ─── Cancel Subscription ──────────────────────────────────────────────────────
+// Apple owns cancellation — users must cancel via iOS Settings.
+// This function opens the Apple subscription management page.
+export const cancelSubscription = () => {
+  window.open('https://apps.apple.com/account/subscriptions', '_blank');
+};
 
 export const resetMonthlyUsage = () =>
   withAuth(async (userId) => {

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.cueout.app',
+  appId: 'com.cueout.ios',
   appName: 'Cueout',
   webDir: 'dist',
   ios: {

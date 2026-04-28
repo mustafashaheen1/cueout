@@ -4,7 +4,8 @@ import { createPageUrl } from '../components/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Crown, Check, Phone, Users, MessageSquare, Sparkles, AlertCircle } from 'lucide-react';
 import FeatureDetailModal from '../components/FeatureDetailModal';
-import { updateSubscriptionTier } from '../api/subscriptions';
+import { grantIAPSubscription } from '../api/subscriptions';
+import { purchaseProduct, IAP_PRODUCTS, getBillingCycle } from '../lib/iap';
 import { useApp } from '../components/AppContext';
 
 const featuresList = [
@@ -77,13 +78,32 @@ export default function Paywall() {
       navigate(createPageUrl('Account'), { replace: true });
       return;
     }
+
     setIsUpgrading(true);
     setUpgradeError('');
+
+    // Pick the correct product ID for the selected billing cycle
+    const productId = billingCycle === 'yearly'
+      ? IAP_PRODUCTS.PLUS_YEARLY
+      : IAP_PRODUCTS.PLUS_MONTHLY;
+
     try {
-      await updateSubscriptionTier('plus', billingCycle);
+      // Step 1: Trigger native App Store payment sheet (or mock in browser)
+      const { jwsRepresentation, isMock } = await purchaseProduct(productId);
+
+      // Step 2: Send JWS to Edge Function → validates with Apple → writes DB
+      await grantIAPSubscription(jwsRepresentation, isMock ?? false);
+
+      // Step 3: Refresh local subscription state
       await refreshSubscription();
+
       navigate(createPageUrl('Home'), { replace: true });
     } catch (err) {
+      // User cancelled — silent, no error shown
+      if (err.message === 'USER_CANCELLED') {
+        setIsUpgrading(false);
+        return;
+      }
       console.error('Upgrade error:', err);
       setUpgradeError(err.message || 'Something went wrong. Please try again.');
     } finally {

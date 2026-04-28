@@ -712,7 +712,7 @@ export default function Home() {
                               {selectedCallerID ? selectedCallerID.name : 'Default number'}
                             </p>
                             <p className="text-[10px] text-zinc-400">
-                              {selectedCallerID ? selectedCallerID.number : 'No specific caller ID'}
+                              {selectedCallerID ? (selectedCallerID.phone_number || selectedCallerID.number) : 'No specific caller ID'}
                             </p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-zinc-500" />

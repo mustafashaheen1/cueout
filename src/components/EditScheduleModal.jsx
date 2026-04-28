@@ -121,9 +121,10 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                       type="text"
                       value={icon}
                       onChange={(e) => setIcon(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       className="w-14 text-center bg-zinc-800 border border-zinc-700 rounded-xl px-2 py-3 text-white text-xl focus:outline-none focus:border-red-500/50 transition-colors"
                       placeholder="✨"
-                      maxLength={4}
+                      maxLength={8}
                     />
                     <input
                       type="text"
@@ -283,7 +284,7 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{cid.name}</p>
-                            <p className="text-xs text-zinc-500 truncate">{cid.number}</p>
+                            <p className="text-xs text-zinc-500 truncate">{cid.phone_number || cid.number}</p>
                           </div>
                           {callerId?.id === cid.id && <Check className="w-4 h-4 text-red-500" />}
                         </div>

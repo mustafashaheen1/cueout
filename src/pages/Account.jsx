@@ -50,10 +50,13 @@ export default function Account() {
   const [showCallerIDEditor, setShowCallerIDEditor] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
   const navigate = useNavigate();
   const { callerIDs, updateCallerIDName, setIsTabBarHidden, subscription, refreshSubscription } = useApp();
   const { user, signOut, checkUser } = useAuth();
+
+  // Detect sign-in method
+  const isAppleUser = user?.app_metadata?.provider === 'apple';
+  const isRelayEmail = email?.endsWith('@privaterelay.appleid.com');
 
   const ringtones = ['Default', 'Classic', 'Modern', 'Gentle', 'Urgent'];
 
@@ -270,13 +273,22 @@ export default function Account() {
                   <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                   {!isEditingEmail ? (
                     <>
-                      <span className="truncate min-w-0 flex-1">{email}</span>
-                      <button
-                        onClick={() => { setTempEmail(email); setEmailError(''); setEmailSuccess(''); setIsEditingEmail(true); }}
-                        className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
-                      >
-                        <Edit2 className="w-3 h-3 text-zinc-500" />
-                      </button>
+                      <span className="truncate min-w-0 flex-1">
+                        {isRelayEmail ? 'Apple private email' : email}
+                      </span>
+                      {isAppleUser ? (
+                        <span className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-zinc-800 rounded text-[9px] text-zinc-400 border border-zinc-700">
+                          <img src="/appleLogo.png" alt="Apple" className="w-2.5 h-2.5 opacity-60" />
+                          Apple
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => { setTempEmail(email); setEmailError(''); setEmailSuccess(''); setIsEditingEmail(true); }}
+                          className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
+                        >
+                          <Edit2 className="w-3 h-3 text-zinc-500" />
+                        </button>
+                      )}
                     </>
                   ) : (
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -306,6 +318,9 @@ export default function Account() {
                 </div>
                 {emailError && <p className="text-[10px] text-red-400 mt-1 ml-5">{emailError}</p>}
                 {emailSuccess && <p className="text-[10px] text-green-400 mt-1 ml-5">{emailSuccess}</p>}
+                {isRelayEmail && (
+                  <p className="text-[10px] text-zinc-600 mt-1 ml-5">Managed by Apple</p>
+                )}
               </div>
             </div>
           </div>
@@ -434,27 +449,18 @@ export default function Account() {
                 <div className="flex items-start gap-2 mb-3">
                   <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-red-300 leading-relaxed">
-                    Cancel your Plus subscription? You'll keep access until your billing period ends.
+                    To cancel, go to iPhone Settings → Apple ID → Subscriptions → CueOut.
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={async () => {
-                      setIsCancelling(true);
-                      try {
-                        await cancelSubscription();
-                        await refreshSubscription();
-                        setShowCancelConfirm(false);
-                      } catch (e) {
-                        console.error('Cancel error:', e);
-                      } finally {
-                        setIsCancelling(false);
-                      }
+                    onClick={() => {
+                      cancelSubscription();
+                      setShowCancelConfirm(false);
                     }}
-                    disabled={isCancelling}
-                    className="flex-1 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded-full transition-all"
+                    className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-full transition-all"
                   >
-                    {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                    Open Settings
                   </button>
                   <button
                     onClick={() => setShowCancelConfirm(false)}

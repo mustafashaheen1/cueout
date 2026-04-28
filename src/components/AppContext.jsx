@@ -21,8 +21,11 @@ import {
   promoteQuickSchedule as promoteSchedule,
   isAuthenticated,
   getSubscription as fetchSubscription,
-  decrementUsage as decrementUsageApi
+  decrementUsage as decrementUsageApi,
+  syncIAPOnLaunch,
+  grantIAPSubscription
 } from '../api';
+import { restorePurchases as restoreIAPPurchases, getActiveSubscription as getActiveIAPSubscription } from '../lib/iap';
 import { getHistory as fetchLuronHistory, getCallDetails, getUserId as getLuronUserId } from '../api/luronApi';
 import { useAuth } from './AuthContext';
 
@@ -141,6 +144,12 @@ export function AppProvider({ children }) {
     }
   });
 
+  // Warm up Render.com free-tier server on app launch so the first scheduled
+  // call doesn't hit a cold-start delay (15–30s). Fire-and-forget, non-blocking.
+  useEffect(() => {
+    fetch('https://luron-api.onrender.com/health').catch(() => {});
+  }, []);
+
   // Load data on mount and whenever auth state changes
   useEffect(() => {
     loadData();
@@ -213,6 +222,11 @@ export function AppProvider({ children }) {
       setUnreadHistoryCount(unreadCount);
       setSubscription(subData);
       if (subData) localStorage.setItem('subscription', JSON.stringify(subData));
+
+      // Sync IAP in background — catches renewals that happened while app was closed
+      syncIAPOnLaunch(subData).then((didSync) => {
+        if (didSync) refreshSubscription().catch(() => {});
+      }).catch(() => {});
     } catch (error) {
       console.error('Error loading data:', error);
       // Fall back to localStorage on error
@@ -653,6 +667,20 @@ export function AppProvider({ children }) {
       };
     }
 
+    // Treat expired Plus subscriptions as free-tier
+    const isExpired =
+      subscription.tier === 'plus' &&
+      subscription.expires_at &&
+      new Date(subscription.expires_at) < new Date();
+
+    if (isExpired) {
+      return {
+        allowed: false,
+        reason: 'Your Plus subscription has expired. Renew to keep scheduling.',
+        isUpgradePrompt: true,
+      };
+    }
+
     if (subscription.calls_remaining <= 0) {
       const isPlus = subscription.tier === 'plus';
       return {
@@ -694,6 +722,23 @@ export function AppProvider({ children }) {
     } catch (e) {
       console.error('Error refreshing subscription:', e);
       return subscription;
+    }
+  };
+
+  // Restores App Store purchases — required by App Store review guidelines.
+  // Call this from a "Restore Purchases" button if needed.
+  const restorePurchases = async () => {
+    try {
+      const { transactions } = await restoreIAPPurchases();
+      if (!transactions?.length) return false;
+
+      // Grant subscription from the first active transaction
+      const tx = transactions[0];
+      await grantIAPSubscription(tx.jwsRepresentation, false);
+      await refreshSubscription();
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -747,6 +792,7 @@ export function AppProvider({ children }) {
       refreshSubscription,
       checkCanSchedule,
       decrementUsage,
+      restorePurchases,
 
       // Utilities
       loadData

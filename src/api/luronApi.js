@@ -142,7 +142,7 @@ export async function scheduleCall(params) {
       advanced_settings: {
         tone:           personaConfig.tone     || 'casual',
         voice:          selectedVoice,
-        caller_id:      selectedCallerID?.number || null,
+        caller_id:      selectedCallerID?.phone_number || selectedCallerID?.number || null,
         duration:       personaConfig.duration   || 30,
         custom_phrases: Array.isArray(personaConfig.customPhrases)
                           ? personaConfig.customPhrases.join(', ')
