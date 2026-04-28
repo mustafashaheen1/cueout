@@ -73,6 +73,7 @@ function LayoutContent({ children, currentPageName }) {
   return (
     <div className="relative w-full h-[100dvh] bg-black text-white overflow-hidden">
       <div
+        id="scroll-container"
         className={`absolute inset-0 overflow-y-auto ${!hideTabBar ? 'pb-36' : ''}`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >

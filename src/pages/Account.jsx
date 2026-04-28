@@ -160,6 +160,9 @@ export default function Account() {
       setEmailSuccess('Email updated successfully.');
       setIsEditingEmail(false);
       setTimeout(() => setEmailSuccess(''), 4000);
+      // Refresh global AuthContext user so user.email reflects the new address
+      // everywhere (e.g. Home.jsx uses user.email as recipientEmail for scheduled emails)
+      checkUser().catch(() => {});
     } catch (err) {
       setEmailError(err.message || 'Failed to update email. Try again.');
       console.error('Error updating email:', err);
@@ -606,22 +609,22 @@ export default function Account() {
           <SettingsItem
             icon={HelpCircle}
             label="How CueOut works"
-            onClick={() => {}}
+            onClick={() => navigate(createPageUrl('HowCueOutWorks'))}
           />
           <SettingsItem
             icon={Shield}
             label="Privacy Policy"
-            onClick={() => {}}
+            onClick={() => navigate(createPageUrl('PrivacyPolicy'))}
           />
           <SettingsItem
             icon={Shield}
             label="Terms of Use"
-            onClick={() => {}}
+            onClick={() => navigate(createPageUrl('TermsOfUse'))}
           />
           <SettingsItem
             icon={Mail}
             label="Support"
-            onClick={() => {}}
+            onClick={() => navigate(createPageUrl('Support'))}
             last
           />
         </motion.div>

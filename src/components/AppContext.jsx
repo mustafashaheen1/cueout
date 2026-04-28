@@ -477,23 +477,33 @@ export function AppProvider({ children }) {
         console.log('⏳ syncPendingStatuses: status not final yet (', luronData.status, ') — skipping');
         continue;
       }
-      if (mapped === call.status) continue;
+
+      // Actual duration in seconds from Luron (0 means no real duration e.g. email)
+      const durationSeconds = typeof luronData.duration === 'number' && luronData.duration > 0
+        ? luronData.duration : null;
+
+      const needsStatusUpdate   = mapped !== call.status;
+      const needsDurationUpdate = durationSeconds !== null && !call.duration_seconds;
+
+      if (!needsStatusUpdate && !needsDurationUpdate) continue;
 
       updates.push({
-        id: call.id,
-        status: mapped,
-        luron_call_id: call.luron_call_id || luronData.call_id || null,
+        id:               call.id,
+        status:           mapped,
+        luron_call_id:    call.luron_call_id || luronData.call_id || null,
+        duration_seconds: durationSeconds,
       });
     }
 
     if (updates.length === 0) return;
 
-    // Write to Supabase — status + luron_call_id so matches survive page reloads
+    // Write to Supabase — status + luron_call_id + duration_seconds
     await Promise.allSettled(
       updates.map(u =>
         supabase.from('call_history').update({
           status: u.status,
-          ...(u.luron_call_id ? { luron_call_id: u.luron_call_id } : {}),
+          ...(u.luron_call_id    ? { luron_call_id:    u.luron_call_id    } : {}),
+          ...(u.duration_seconds ? { duration_seconds: u.duration_seconds } : {}),
         }).eq('id', u.id)
       )
     );
@@ -501,7 +511,13 @@ export function AppProvider({ children }) {
     // Update local state immediately
     setHistory(prev => prev.map(h => {
       const u = updates.find(x => x.id === h.id);
-      return u ? { ...h, status: u.status, luron_call_id: u.luron_call_id ?? h.luron_call_id } : h;
+      if (!u) return h;
+      return {
+        ...h,
+        status:       u.status,
+        luron_call_id: u.luron_call_id ?? h.luron_call_id,
+        ...(u.duration_seconds ? { duration: u.duration_seconds, duration_seconds: u.duration_seconds } : {}),
+      };
     }));
   };
 

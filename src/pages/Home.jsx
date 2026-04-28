@@ -60,6 +60,7 @@ export default function Home() {
 
   // Luron API Integration
   const [isScheduling, setIsScheduling] = useState(false);
+  const schedulingLock = useRef(false); // synchronous guard — prevents double-submit on rapid taps
   const [scheduleError, setScheduleError] = useState(null);
   const [scheduleErrorIsLimit, setScheduleErrorIsLimit] = useState(false);
   const [showConfirmSchedule, setShowConfirmSchedule] = useState(false);
@@ -198,9 +199,15 @@ export default function Home() {
   };
 
   const doSchedule = async () => {
+    // Synchronous re-entry guard — React state updates are batched so disabled alone
+    // is not enough to block rapid double-taps before the re-render occurs.
+    if (schedulingLock.current) return;
+    schedulingLock.current = true;
+
     const persona = personas.find((p) => p.id === selectedPersona);
     const personaConfig = getPersonaConfig(selectedPersona);
 
+    try {
     // Clear any previous errors
     setScheduleError(null);
     setScheduleErrorIsLimit(false);
@@ -393,6 +400,9 @@ export default function Home() {
         setTimeout(() => setScheduleError(null), 5000);
       }
     }
+  } finally {
+    schedulingLock.current = false;
+  }
   };
 
   const handleCancelCall = (callId) => {
@@ -1063,7 +1073,8 @@ export default function Home() {
                   <motion.button
                     whileTap={{ scale: 0.97, opacity: 0.85 }}
                     onClick={() => { setShowConfirmSchedule(false); doSchedule(); }}
-                    className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-4 rounded-full shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
+                    disabled={isScheduling}
+                    className="w-full bg-gradient-to-r from-red-500 to-red-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-4 rounded-full shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
                   >
                     <LogOut className="w-4 h-4" />
                     Schedule Anyway

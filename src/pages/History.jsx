@@ -124,6 +124,11 @@ export default function History() {
   const { history, clearUnreadHistory, quickSchedules, updateQuickSchedule, addQuickSchedule, removeQuickSchedule, promoteQuickSchedule, refreshHistory, syncPendingStatuses, setIsTabBarHidden } = useApp();
   const { personas } = usePersona();
   const [selectedCall, setSelectedCall] = useState(null);
+
+  const resolvePersonaName = (call) => {
+    const found = personas.find(p => p.id === call.persona || p.id === call.persona_id);
+    return found?.name || call.personaName || call.persona || 'Unknown';
+  };
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isNewPreset, setIsNewPreset] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -376,8 +381,8 @@ export default function History() {
                   ...call,
                   scheduledTime: formatHistoryDate(call.completedAt),
                   status: call.status || 'completed',
-                  duration: call.duration ? `${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')}` : '0:30',
-                  personaName: call.personaName || call.persona
+                  duration: call.duration > 0 ? `${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')}` : (call.status === 'answered' ? '0:00' : '--'),
+                  personaName: resolvePersonaName(call)
                 }}
                 index={index}
                 onClick={() => setSelectedCall(call)}
@@ -425,7 +430,7 @@ export default function History() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="font-bold mb-1 text-white truncate" style={{ fontSize: 'clamp(15px, 4.5vw, 20px)' }}>
-                    {selectedCall.personaName}
+                    {resolvePersonaName(selectedCall)}
                   </h2>
                   <div className="flex items-center gap-1.5 text-zinc-400" style={{ fontSize: 'clamp(11px, 2.8vw, 13px)' }}>
                     <Clock className="w-3.5 h-3.5 flex-shrink-0" />
@@ -450,11 +455,9 @@ export default function History() {
                 <div className="flex items-center justify-between py-2.5 border-b border-zinc-800">
                   <span className="text-zinc-400 text-sm">Duration</span>
                   <span className="font-semibold text-white text-sm">
-                    {selectedCall.duration
-                      ? (typeof selectedCall.duration === 'number'
-                        ? `${Math.floor(selectedCall.duration / 60)}:${(selectedCall.duration % 60).toString().padStart(2, '0')}`
-                        : selectedCall.duration)
-                      : '0:30'}
+                    {selectedCall.duration > 0
+                      ? `${Math.floor(selectedCall.duration / 60)}:${(selectedCall.duration % 60).toString().padStart(2, '0')}`
+                      : selectedCall.status === 'answered' ? '0:00' : '--'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-2.5 border-b border-zinc-800">
