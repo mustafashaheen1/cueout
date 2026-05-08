@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Trash2, Settings, Check, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from './AppContext';
@@ -12,13 +12,9 @@ import { timeOptions, realisticVoices, characterVoices } from './constants';
 
 export default function EditScheduleModal({ schedule, onSave, onClose, onDelete, personas }) {
   const navigate = useNavigate();
-  const { setIsTabBarHidden, callerIDs } = useApp();
+  const { callerIDs } = useApp();
   const [activeTab, setActiveTab] = useState('general');
 
-  useEffect(() => {
-    setIsTabBarHidden(true);
-    return () => setIsTabBarHidden(false);
-  }, [setIsTabBarHidden]);
   const [name, setName] = useState(schedule.name);
   const [icon, setIcon] = useState(schedule.icon || '📞');
   const [personaId, setPersonaId] = useState(schedule.preset.persona);
@@ -29,15 +25,42 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
   const [time, setTime] = useState(schedule.preset.time || '3min');
   const [voiceCategory, setVoiceCategory] = useState(schedule.preset.voiceCategory || 'realistic');
 
+  // Custom time state
+  const [customDate, setCustomDate] = useState(
+    schedule.preset.time === 'custom' && schedule.preset.customDate
+      ? schedule.preset.customDate
+      : null
+  );
+  const [showCustomTime, setShowCustomTime] = useState(false);
+  const [customTimeError, setCustomTimeError] = useState('');
+
   // Sort personas so selected is first
   const orderedPersonas = React.useMemo(() => {
     const selected = personas.find(p => p.id === personaId);
     if (!selected) return personas;
-    const others = personas.filter(p => p.id !== personaId);
-    return [selected, ...others];
+    return [selected, ...personas.filter(p => p.id !== personaId)];
   }, [personas, personaId]);
 
   const allVoices = voiceCategory === 'realistic' ? realisticVoices : characterVoices;
+
+  const toDatetimeLocal = (date) => {
+    const d = new Date(date);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleTimeChipClick = (timeId) => {
+    if (timeId === 'custom') {
+      if (!customDate) {
+        setCustomDate(new Date(Date.now() + 10 * 60 * 1000).toISOString());
+      }
+      setCustomTimeError('');
+      setShowCustomTime(true);
+    } else {
+      setTime(timeId);
+      setCustomDate(null);
+    }
+  };
 
   const handleSave = () => {
     onSave({
@@ -53,7 +76,8 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
         voice: voiceId,
         callerId,
         time,
-        voiceCategory
+        customDate: time === 'custom' ? customDate : null,
+        voiceCategory,
       }
     });
   };
@@ -66,10 +90,8 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
+      {/* Inner card — plain div (no motion) prevents framer-motion animation reset on re-renders */}
+      <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-[380px] bg-zinc-900 rounded-3xl max-h-[85vh] flex flex-col"
       >
@@ -85,8 +107,8 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
             <button
               onClick={() => setActiveTab('general')}
               className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'general' 
-                  ? 'bg-zinc-800 text-white shadow-lg' 
+                activeTab === 'general'
+                  ? 'bg-zinc-800 text-white shadow-lg'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -95,8 +117,8 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
             <button
               onClick={() => setActiveTab('advanced')}
               className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                activeTab === 'advanced' 
-                  ? 'bg-zinc-800 text-white shadow-lg' 
+                activeTab === 'advanced'
+                  ? 'bg-zinc-800 text-white shadow-lg'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -107,13 +129,9 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
 
         <div className="p-6 pt-0 overflow-y-auto flex-1" style={{ scrollbarWidth: 'none' }}>
           <div className="space-y-4">
+            {/* Plain div instead of motion.div — prevents animation reset on AppContext re-renders */}
             {activeTab === 'general' ? (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-5"
-              >
+              <div className="space-y-5">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-400 mb-2">Name & Icon</label>
                   <div className="flex gap-2">
@@ -149,10 +167,19 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                         key={t.id}
                         label={t.label}
                         selected={time === t.id}
-                        onClick={() => setTime(t.id)}
+                        onClick={() => handleTimeChipClick(t.id)}
                       />
                     ))}
                   </div>
+                  {time === 'custom' && customDate && (
+                    <button
+                      onClick={() => setShowCustomTime(true)}
+                      className="mt-2 w-full text-xs text-zinc-400 bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2 text-left hover:bg-zinc-800 transition-colors"
+                    >
+                      📅 {new Date(customDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <span className="text-zinc-500 ml-1">(tap to change)</span>
+                    </button>
+                  )}
                 </div>
 
                 <div>
@@ -173,7 +200,7 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                         </div>
                         <div className="text-[10px] text-center text-zinc-300">{p.name}</div>
                         {personaId === p.id && (
-                          <div 
+                          <div
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(createPageUrl('PersonaSettings'));
@@ -198,14 +225,9 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                     placeholder="Add context for the AI..."
                   />
                 </div>
-              </motion.div>
+              </div>
             ) : (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
+              <div className="space-y-6">
                 {/* Voice Section */}
                 <div>
                   <label className="block text-xs font-semibold text-zinc-400 mb-3">Voice Selection</label>
@@ -292,10 +314,9 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
                     ))}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
-
         </div>
 
         <div className="p-6 border-t border-zinc-800 bg-zinc-900 rounded-b-3xl z-10 flex-shrink-0">
@@ -317,7 +338,93 @@ export default function EditScheduleModal({ schedule, onSave, onClose, onDelete,
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
+
+      {/* Custom time picker — rendered inside the backdrop so it inherits z-index context */}
+      <AnimatePresence>
+        {showCustomTime && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+            onClick={() => setShowCustomTime(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[380px] bg-zinc-900 rounded-3xl p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-white">Custom Time</h3>
+                <button
+                  onClick={() => setShowCustomTime(false)}
+                  className="p-2 hover:bg-zinc-800 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+
+              <div className="mb-4 flex justify-center items-center">
+                <input
+                  type="datetime-local"
+                  value={customDate ? toDatetimeLocal(customDate) : ''}
+                  min={toDatetimeLocal(new Date(Date.now() + 60 * 1000))}
+                  max={toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const selected = new Date(val).getTime();
+                    const now = Date.now();
+                    if (selected <= now) {
+                      setCustomTimeError('Please select a future time.');
+                    } else if (selected > now + 7 * 24 * 60 * 60 * 1000) {
+                      setCustomTimeError('Maximum 7 days in advance.');
+                    } else {
+                      setCustomTimeError('');
+                    }
+                    setCustomDate(new Date(val).toISOString());
+                  }}
+                  className="w-full max-w-[300px] bg-zinc-800 border border-zinc-700 rounded-2xl px-3 py-3 text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"
+                />
+              </div>
+
+              {customTimeError ? (
+                <p className="text-xs text-red-400 mb-4 px-1">{customTimeError}</p>
+              ) : (
+                <p className="text-xs text-zinc-500 mb-4 px-1">Up to 7 days from today</p>
+              )}
+
+              <button
+                onClick={() => {
+                  if (!customDate) {
+                    setCustomTimeError('Please select a date and time.');
+                    return;
+                  }
+                  const selected = new Date(customDate).getTime();
+                  const now = Date.now();
+                  if (selected <= now) {
+                    setCustomTimeError('Please select a future time.');
+                    return;
+                  }
+                  if (selected > now + 7 * 24 * 60 * 60 * 1000) {
+                    setCustomTimeError('Maximum 7 days in advance.');
+                    return;
+                  }
+                  setTime('custom');
+                  setShowCustomTime(false);
+                }}
+                disabled={!!customTimeError || !customDate}
+                className="w-full bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-4 rounded-full transition-colors"
+              >
+                Set Time
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

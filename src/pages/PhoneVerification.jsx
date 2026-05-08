@@ -159,14 +159,14 @@ export default function PhoneVerification() {
     <div className="min-h-screen bg-black flex flex-col pt-safe pb-safe">
       <div className="fixed inset-0 bg-gradient-to-b from-red-950/20 via-black to-black" />
 
-      <div className="relative pt-8 px-6">
+      {/* <div className="relative pt-8 px-6">
         <button
           onClick={() => step === 'code' ? setStep('phone') : navigate(-1)}
           className="p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
-      </div>
+      </div> */}
 
       <div className="relative flex-1 flex flex-col items-center justify-center px-6">
         {step === 'phone' ? (

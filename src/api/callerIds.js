@@ -4,10 +4,8 @@ import { supabaseQuery, withAuth } from '../lib/supabaseMiddleware';
 // ─── Caller IDs ───────────────────────────────────────────────────────────────
 
 export const getCallerIds = () =>
-  withAuth((userId) =>
-    supabaseQuery(() =>
-      supabase.from('caller_ids').select('*').eq('user_id', userId).order('created_at', { ascending: true })
-    )
+  supabaseQuery(() =>
+    supabase.from('caller_ids').select('*').is('user_id', null).order('created_at', { ascending: true })
   );
 
 export const getCallerId = (callerId) =>
@@ -35,15 +33,53 @@ export const deleteCallerId = (callerId) =>
     supabase.from('caller_ids').delete().eq('id', callerId)
   );
 
-export const initializeDefaultCallerIds = () =>
-  withAuth((userId) =>
-    supabaseQuery(() =>
-      supabase.from('caller_ids').insert([
-        { name: 'Mom',        phone_number: '(555) 123-4567', location: 'Mobile',          user_id: userId },
-        { name: 'Office',     phone_number: '(555) 987-6543', location: 'Work',             user_id: userId },
-        { name: 'Girlfriend', phone_number: '(555) 246-8135', location: 'Mobile',          user_id: userId },
-        { name: 'Manager',    phone_number: '(555) 369-2580', location: 'Work',             user_id: userId },
-        { name: 'Doctor',     phone_number: '(555) 753-9514', location: 'Medical Center',  user_id: userId },
-      ]).select()
-    )
-  );
+/**
+ * Sync the Luron caller ID pool with the user's Supabase records.
+ *
+ * - Creates a row for each Luron number that doesn't yet exist for this user
+ *   (default name "Caller ID 1"…"Caller ID 5").
+ * - Preserves custom names the user has already saved.
+ * - Deletes any stale rows (e.g. old mock (555) numbers) no longer in the pool.
+ * - Returns the final array in the same order as luronNumbers.
+ */
+export const syncCallerIdsWithLuron = (luronNumbers) =>
+  withAuth(async (userId) => {
+    // Fetch all existing caller ID records for this user
+    const existing = await supabaseQuery(() =>
+      supabase.from('caller_ids').select('*').eq('user_id', userId)
+    ) || [];
+
+    const byPhone = new Map(existing.map(r => [r.phone_number, r]));
+
+    // Insert rows for any Luron numbers not yet in Supabase
+    const toInsert = luronNumbers
+      .filter(phone => !byPhone.has(phone))
+      .map((phone) => ({
+        user_id:      userId,
+        phone_number: phone,
+        name:         `Caller ID ${luronNumbers.indexOf(phone) + 1}`,
+        location:     '',
+      }));
+
+    if (toInsert.length > 0) {
+      const created = await supabaseQuery(() =>
+        supabase.from('caller_ids').insert(toInsert).select()
+      ) || [];
+      created.forEach(r => byPhone.set(r.phone_number, r));
+    }
+
+    // Delete stale rows only if they have auto-generated names ("Caller ID N").
+    // Never delete records with user-customised names — the user set those deliberately.
+    const isAutoName = (name) => /^Caller ID \d+$/.test(name || '');
+    const stale = existing.filter(
+      r => !luronNumbers.includes(r.phone_number) && isAutoName(r.name)
+    );
+    if (stale.length > 0) {
+      await supabaseQuery(() =>
+        supabase.from('caller_ids').delete().in('id', stale.map(r => r.id))
+      ).catch(() => {});
+    }
+
+    // Return in the same order as the Luron pool
+    return luronNumbers.map(phone => byPhone.get(phone)).filter(Boolean);
+  });

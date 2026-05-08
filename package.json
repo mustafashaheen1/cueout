@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "npx cap sync ios && node scripts/patch-ios-plugins.js"
   },
   "dependencies": {
     "@base44/sdk": "^0.1.2",

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../components/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Crown, Check, Phone, Users, MessageSquare, Sparkles, AlertCircle } from 'lucide-react';
 import FeatureDetailModal from '../components/FeatureDetailModal';
+
 import { grantIAPSubscription } from '../api/subscriptions';
 import { purchaseProduct, IAP_PRODUCTS, getBillingCycle } from '../lib/iap';
 import { useApp } from '../components/AppContext';
@@ -66,45 +67,77 @@ const features = {
 };
 
 export default function Paywall() {
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  const { subscription, refreshSubscription } = useApp();
+  // Initialize from cache — synced to fresh DB data via useEffect below
+  const [billingCycle, setBillingCycle] = useState(subscription?.billing_cycle || 'monthly');
   const [selectedFeature, setSelectedFeature] = useState(null);
+
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
+  // True while we're fetching fresh subscription data from DB on mount.
+  // Button stays disabled until this resolves so we never act on stale cache.
+  const [isLoadingPlan, setIsLoadingPlan] = useState(true);
+
   const navigate = useNavigate();
-  const { subscription, refreshSubscription } = useApp();
+
+  // Always fetch fresh subscription from DB on mount so billing_cycle is never stale.
+  useEffect(() => {
+    setIsLoadingPlan(true);
+    refreshSubscription().finally(() => setIsLoadingPlan(false));
+  }, []);
+
+  // Sync the selected tab whenever fresh subscription data arrives
+  useEffect(() => {
+    if (subscription?.billing_cycle) {
+      setBillingCycle(subscription.billing_cycle);
+    }
+  }, [subscription?.billing_cycle]);
+
+  // Yearly subscribers cannot downgrade to monthly mid-cycle — both tabs disabled
+  const isYearlySubscriber = subscription?.tier === 'plus' && subscription?.billing_cycle === 'yearly';
+  // True when the selected tab matches the user's current plan
+  const isSamePlan = subscription?.tier === 'plus' && billingCycle === subscription?.billing_cycle;
+  const isButtonDisabled = isLoadingPlan || isUpgrading || isSamePlan || isYearlySubscriber;
 
   const handleUpgrade = async () => {
-    if (subscription?.tier === 'plus') {
-      navigate(createPageUrl('Account'), { replace: true });
-      return;
-    }
+    if (isButtonDisabled) return;
 
     setIsUpgrading(true);
     setUpgradeError('');
-
-    // Pick the correct product ID for the selected billing cycle
     const productId = billingCycle === 'yearly'
       ? IAP_PRODUCTS.PLUS_YEARLY
       : IAP_PRODUCTS.PLUS_MONTHLY;
-
     try {
-      // Step 1: Trigger native App Store payment sheet (or mock in browser)
       const { jwsRepresentation, isMock } = await purchaseProduct(productId);
 
-      // Step 2: Send JWS to Edge Function → validates with Apple → writes DB
-      await grantIAPSubscription(jwsRepresentation, isMock ?? false);
+      // Apple has already confirmed the payment — grant is best-effort.
+      // If the Edge Function times out or fails, we still navigate to Home.
+      // refreshSubscription always runs so the UI never shows stale cache data.
+      try {
+        // 30s timeout — Edge Function cold starts on Supabase can take 15–25s
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('GRANT_TIMEOUT')), 30_000)
+        );
+        await Promise.race([
+          grantIAPSubscription(jwsRepresentation, isMock ?? false, productId),
+          timeout,
+        ]);
+      } catch (grantErr) {
+        console.warn('Grant failed:', grantErr.message);
+        // Show the error so it's visible during testing — payment was taken by Apple
+        // but our DB wasn't updated. User can restore purchases from Account.
+        setUpgradeError(`Purchase recorded by Apple but server sync failed: ${grantErr.message}. Please restore purchases from Account settings.`);
+      }
 
-      // Step 3: Refresh local subscription state
-      await refreshSubscription();
+      // Brief pause so the DB write has settled before we read it back
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Always refresh — ensures correct calls_limit/remaining shows after purchase
+      await refreshSubscription().catch(() => {});
 
       navigate(createPageUrl('Home'), { replace: true });
     } catch (err) {
-      // User cancelled — silent, no error shown
-      if (err.message === 'USER_CANCELLED') {
-        setIsUpgrading(false);
-        return;
-      }
-      console.error('Upgrade error:', err);
+      if (err.message === 'USER_CANCELLED') return;
+      console.error('Purchase error:', err);
       setUpgradeError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setIsUpgrading(false);
@@ -287,13 +320,17 @@ export default function Paywall() {
 
           <button
             onClick={handleUpgrade}
-            disabled={isUpgrading}
-            className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-base py-4 rounded-full shadow-lg shadow-red-500/40 transition-all duration-200 active:scale-95"
+            disabled={isButtonDisabled}
+            className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base py-4 rounded-full shadow-lg shadow-red-500/40 transition-all duration-200 active:scale-95"
           >
-            {isUpgrading
+            {isLoadingPlan
+              ? 'Loading...'
+              : isUpgrading
               ? 'Processing...'
-              : subscription?.tier === 'plus'
-              ? 'You\'re already on Plus'
+              : isYearlySubscriber
+              ? "You're already on the yearly plan"
+              : isSamePlan
+              ? "You're already on this plan"
               : 'Continue with Plus'}
           </button>
 
@@ -301,7 +338,7 @@ export default function Paywall() {
             onClick={() => window.history.length > 1 ? navigate(-1) : navigate(createPageUrl('Home'), { replace: true })}
             className="w-full text-zinc-400 hover:text-white font-medium py-2 transition-colors text-sm"
           >
-            Keep Free Plan
+            {subscription?.tier === 'plus' ? 'Go back' : 'Keep Free Plan'}
           </button>
         </motion.div>
 

@@ -13,7 +13,7 @@ import {
   deleteUpcomingCall,
   getCallerIds as fetchCallerIds,
   updateCallerIdName as updateCallerName,
-  initializeDefaultCallerIds,
+  syncCallerIdsWithLuron,
   getQuickSchedules as fetchQuickSchedules,
   createQuickSchedule as createSchedule,
   updateQuickSchedule as updateSchedule,
@@ -26,7 +26,7 @@ import {
   grantIAPSubscription
 } from '../api';
 import { restorePurchases as restoreIAPPurchases, getActiveSubscription as getActiveIAPSubscription } from '../lib/iap';
-import { getHistory as fetchLuronHistory, getCallDetails, getUserId as getLuronUserId } from '../api/luronApi';
+import { getHistory as fetchLuronHistory, getCallDetails, getUserId as getLuronUserId, fetchCallerIdNumbers } from '../api/luronApi';
 import { useAuth } from './AuthContext';
 
 const AppContext = createContext();
@@ -41,6 +41,29 @@ const DB_UPCOMING_CALL_FIELDS = new Set([
 const pickDbUpcomingCallFields = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([k]) => DB_UPCOMING_CALL_FIELDS.has(k)));
 
+// ISO date strings stored in time_preset are longer than any preset key ('3min','5min','now','custom')
+const isIsoDate = (s) => typeof s === 'string' && s.length > 8 && s.includes('T');
+
+// Module-level so it's available in useState initializers and loadFromLocalStorage
+const normalizeQuickSchedule = (qs) => ({
+  ...qs,
+  preset: qs.preset || {
+    persona:        qs.persona_id       || 'manager',
+    note:           qs.context_note     || '',
+    contactMethods: qs.contact_methods  || ['call'],
+    voice:          qs.voice_id         || 'emma',
+    callerId:       qs.caller_id        || null,
+    // Decode: if time_preset is an ISO date string, restore time='custom' + customDate.
+    // Legacy rows saved before the ISO-encoding fix have time_preset='custom' (literal) —
+    // we can't recover the date, so fall back to '3min' to avoid { time:'custom', customDate:null }.
+    time:           isIsoDate(qs.time_preset) ? 'custom'
+                  : qs.time_preset === 'custom' ? '3min'
+                  : (qs.time_preset || '3min'),
+    customDate:     isIsoDate(qs.time_preset) ? qs.time_preset : null,
+    voiceCategory:  qs.voice_category   || 'realistic',
+  }
+});
+
 export function AppProvider({ children }) {
   const { user } = useAuth();
   // State — initialize from localStorage cache for instant render
@@ -54,7 +77,7 @@ export function AppProvider({ children }) {
     try { const s = localStorage.getItem('callerIDs_v3'); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [quickSchedules, setQuickSchedules] = useState(() => {
-    try { const s = localStorage.getItem('quickSchedules'); return s ? JSON.parse(s) : []; } catch { return []; }
+    try { const s = localStorage.getItem('quickSchedules'); return s ? JSON.parse(s).map(normalizeQuickSchedule) : []; } catch { return []; }
   });
   const [subscription, setSubscription] = useState(() => {
     try { const s = localStorage.getItem('subscription'); return s ? JSON.parse(s) : null; } catch { return null; }
@@ -130,19 +153,7 @@ export function AppProvider({ children }) {
     luron_call_id:   item.luron_call_id   ?? null,
   });
 
-  // Normalize quick schedule from Supabase flat structure to app's nested preset structure
-  const normalizeQuickSchedule = (qs) => ({
-    ...qs,
-    preset: qs.preset || {
-      persona: qs.persona_id || 'manager',
-      note: qs.context_note || '',
-      contactMethods: qs.contact_methods || ['call'],
-      voice: qs.voice_id || 'emma',
-      callerId: qs.caller_id || null,
-      time: qs.time_preset || '3min',
-      voiceCategory: qs.voice_category || 'realistic'
-    }
-  });
+  // normalizeQuickSchedule is defined at module-level above AppProvider
 
   // Warm up Render.com free-tier server on app launch so the first scheduled
   // call doesn't hit a cold-start delay (15–30s). Fire-and-forget, non-blocking.
@@ -156,6 +167,10 @@ export function AppProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
+        // Clear stale subscription cache immediately so new user doesn't briefly
+        // see the previous account's Plus status while loadData() is in-flight.
+        setSubscription(null);
+        localStorage.removeItem('subscription');
         // New user signed in — reload fresh data for this account
         loadData();
       } else if (event === 'SIGNED_OUT') {
@@ -200,13 +215,7 @@ export function AppProvider({ children }) {
       const [calls, historyData, callerIdsData, schedulesData, unreadCount, subData] = await Promise.all([
         fetchUpcomingCalls().catch(() => []),
         fetchCallHistory().catch(() => []),
-        fetchCallerIds().then(async (data) => {
-          if (data.length === 0) {
-            await initializeDefaultCallerIds().catch(() => {});
-            return fetchCallerIds().catch(() => []);
-          }
-          return data;
-        }).catch(() => []),
+        fetchCallerIds().catch(() => []),
         fetchQuickSchedules().catch(() => []),
         fetchUnreadCount().catch(() => 0),
         fetchSubscription().catch(() => null)
@@ -217,14 +226,31 @@ export function AppProvider({ children }) {
         return (calls || []).map(c => normalizeUpcomingCall(c, prevMap.get(c.id)));
       });
       setHistory((historyData || []).map(normalizeHistoryItem));
-      setCallerIDs(callerIdsData);
+      // Merge Supabase rows (source of truth for phone numbers) with locally-stored
+      // name preferences. Deduplicate by id to prevent stale localStorage from
+      // creating phantom rows.
+      setCallerIDs(prev => {
+        const localNames = new Map(prev.map(c => [c.id, c.name]));
+        const seen = new Set();
+        return (callerIdsData || [])
+          .filter(row => { if (seen.has(row.id)) return false; seen.add(row.id); return true; })
+          .map(row => ({ ...row, name: localNames.get(row.id) || row.name }));
+      });
       setQuickSchedules(schedulesData.map(normalizeQuickSchedule));
       setUnreadHistoryCount(unreadCount);
-      setSubscription(subData);
-      if (subData) localStorage.setItem('subscription', JSON.stringify(subData));
+      // Safety guard: if the DB row has a user_id and it doesn't match the
+      // currently authenticated user, discard it. Prevents stale cache bleed
+      // after account switches.
+      const currentUserId = user?.id;
+      const safeSubData = (subData && subData.user_id && currentUserId && subData.user_id !== currentUserId)
+        ? null
+        : subData;
+      setSubscription(safeSubData);
+      if (safeSubData) localStorage.setItem('subscription', JSON.stringify(safeSubData));
+      else localStorage.removeItem('subscription');
 
       // Sync IAP in background — catches renewals that happened while app was closed
-      syncIAPOnLaunch(subData).then((didSync) => {
+      syncIAPOnLaunch(safeSubData).then((didSync) => {
         if (didSync) refreshSubscription().catch(() => {});
       }).catch(() => {});
     } catch (error) {
@@ -246,13 +272,13 @@ export function AppProvider({ children }) {
     setUpcomingCalls(savedCalls ? JSON.parse(savedCalls) : []);
     setHistory(savedHistory ? JSON.parse(savedHistory) : []);
     setCallerIDs(savedCallerIDs ? JSON.parse(savedCallerIDs) : [
-      { id: 1, name: 'Mom', number: '(555) 123-4567', location: 'Mobile' },
-      { id: 2, name: 'Office', number: '(555) 987-6543', location: 'Work' },
-      { id: 3, name: 'Girlfriend', number: '(555) 246-8135', location: 'Mobile' },
-      { id: 4, name: 'Manager', number: '(555) 369-2580', location: 'Work' },
-      { id: 6, name: 'Doctor', number: '(555) 753-9514', location: 'Medical Center' },
+      { id: '1', name: 'Caller ID 1', phone_number: '+15105183017', location: '' },
+      { id: '2', name: 'Caller ID 2', phone_number: '+15107382416', location: '' },
+      { id: '3', name: 'Caller ID 3', phone_number: '+15105911257', location: '' },
+      { id: '4', name: 'Caller ID 4', phone_number: '+15109005486', location: '' },
+      { id: '5', name: 'Caller ID 5', phone_number: '+15106801845', location: '' },
     ]);
-    setQuickSchedules(savedSchedules ? JSON.parse(savedSchedules) : []);
+    setQuickSchedules(savedSchedules ? JSON.parse(savedSchedules).map(normalizeQuickSchedule) : []);
   };
 
   // Also persist to localStorage as backup
@@ -334,7 +360,7 @@ export function AppProvider({ children }) {
         await promoteSchedule(id);
         // Reload to get correct ordering
         const schedules = await fetchQuickSchedules();
-        setQuickSchedules(schedules);
+        setQuickSchedules(schedules.map(normalizeQuickSchedule));
       } else {
         setQuickSchedules(prev => {
           const index = prev.findIndex(s => s.id === id);
@@ -360,7 +386,9 @@ export function AppProvider({ children }) {
     };
     try {
       // withAuth in addHistoryItem handles auth independently — no isAuth gate needed
-      const newHistoryItem = await addHistoryItem(historyItem);
+      // Normalize so duration_seconds is not in the item — lets syncPendingStatuses
+      // correctly override the placeholder duration with the real Luron value later.
+      const newHistoryItem = normalizeHistoryItem(await addHistoryItem(historyItem));
       setHistory(prev => [newHistoryItem, ...prev]);
       setUnreadHistoryCount(prev => prev + 1);
       return newHistoryItem;
@@ -478,12 +506,21 @@ export function AppProvider({ children }) {
         continue;
       }
 
-      // Actual duration in seconds from Luron (0 means no real duration e.g. email)
-      const durationSeconds = typeof luronData.duration === 'number' && luronData.duration > 0
-        ? luronData.duration : null;
+      // Actual duration in seconds from Luron.
+      // Primary:  luronData.duration          — real call duration Luron tracked
+      // Fallback: advanced_settings.duration  — configured max duration we sent
+      // Both are integers (seconds). Use Number() for type safety (string / number).
+      const actualDuration     = Number(luronData.duration ?? 0);
+      const configuredDuration = Number(luronData.advanced_settings?.duration ?? 0);
+      const durationSeconds    = actualDuration > 0     ? actualDuration
+                               : configuredDuration > 0 ? configuredDuration
+                               : null;
 
       const needsStatusUpdate   = mapped !== call.status;
-      const needsDurationUpdate = durationSeconds !== null && !call.duration_seconds;
+      // Update duration when Luron provides a real value that differs from what is stored.
+      // Compare against the stored value — if it matches exactly, no write needed.
+      const storedDuration      = call.duration ?? call.duration_seconds ?? 0;
+      const needsDurationUpdate = durationSeconds !== null && durationSeconds !== storedDuration;
 
       if (!needsStatusUpdate && !needsDurationUpdate) continue;
 
@@ -587,17 +624,21 @@ export function AppProvider({ children }) {
   };
 
   // Caller IDs
-  const updateCallerIDName = async (id, newName) => {
+  const refreshCallerIds = async () => {
     try {
-      if (isAuth) {
-        await updateCallerName(id, newName);
-      }
-      setCallerIDs(prev => prev.map(cid => cid.id === id ? { ...cid, name: newName } : cid));
-    } catch (error) {
-      console.error('Error updating caller ID:', error);
-      // Optimistic update fallback
-      setCallerIDs(prev => prev.map(cid => cid.id === id ? { ...cid, name: newName } : cid));
+      const data = await fetchCallerIds();
+      setCallerIDs(data || []);
+      return data;
+    } catch (e) {
+      console.error('refreshCallerIds failed:', e.message);
+      return callerIDs;
     }
+  };
+
+  const updateCallerIDName = (id, newName) => {
+    // Caller IDs are shared rows (user_id = NULL) with no per-user UPDATE RLS policy.
+    // Names are user preferences — persist only to localStorage via the callerIDs useEffect.
+    setCallerIDs(prev => prev.map(cid => cid.id === id ? { ...cid, name: newName } : cid));
   };
 
   // Luron API - Sync history with API
@@ -802,6 +843,7 @@ export function AppProvider({ children }) {
       promoteQuickSchedule,
 
       // Caller IDs
+      refreshCallerIds,
       updateCallerIDName,
 
       // Subscription

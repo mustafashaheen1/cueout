@@ -5,9 +5,9 @@ import { useAuth } from '../components/AuthContext';
 import { createPageUrl } from '../components/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { cancelSubscription } from '../api/subscriptions';
 import PullToRefresh from '../components/PullToRefresh';
 import InfoModal from '../components/InfoModal';
+import { saveToContacts } from '../lib/contacts';
 import {
   User,
   Mail,
@@ -25,11 +25,12 @@ import {
   Edit2,
   X,
   Volume2,
-  AlertTriangle,
   Clock,
   Users,
   Zap,
-  Star
+  Star,
+  RefreshCw,
+  UserPlus
 } from 'lucide-react';
 
 // ─── How CueOut Works content ─────────────────────────────────────────────────
@@ -131,11 +132,18 @@ export default function Account() {
   const [selectedRingtone, setSelectedRingtone] = useState('Default');
   const [showRingtoneSelector, setShowRingtoneSelector] = useState(false);
   const [showCallerIDEditor, setShowCallerIDEditor] = useState(false);
+  const [isSyncingCallerIds, setIsSyncingCallerIds] = useState(false);
+  const [savedContactIds, setSavedContactIds] = useState(() => {
+    try {
+      const s = localStorage.getItem('savedCallerContactIds');
+      return s ? new Set(JSON.parse(s)) : new Set();
+    } catch { return new Set(); }
+  });
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
   const [infoModal, setInfoModal] = useState(null); // 'how' | 'privacy' | 'terms' | null
   const navigate = useNavigate();
-  const { callerIDs, updateCallerIDName, setIsTabBarHidden, subscription, refreshSubscription } = useApp();
+  const { callerIDs, updateCallerIDName, refreshCallerIds, setIsTabBarHidden, subscription, refreshSubscription } = useApp();
   const { user, signOut, checkUser } = useAuth();
 
   // Detect sign-in method
@@ -530,42 +538,7 @@ export default function Account() {
             )}
           </div>
 
-          {subscription?.tier === 'plus' ? (
-            showCancelConfirm ? (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                <div className="flex items-start gap-2 mb-3">
-                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-300 leading-relaxed">
-                    To cancel, go to iPhone Settings → Apple ID → Subscriptions → CueOut.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      cancelSubscription();
-                      setShowCancelConfirm(false);
-                    }}
-                    className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-full transition-all"
-                  >
-                    Open Settings
-                  </button>
-                  <button
-                    onClick={() => setShowCancelConfirm(false)}
-                    className="flex-1 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-semibold rounded-full transition-all"
-                  >
-                    Keep Plus
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCancelConfirm(true)}
-                className="w-full text-zinc-500 hover:text-zinc-300 text-xs py-2 transition-colors"
-              >
-                Cancel subscription
-              </button>
-            )
-          ) : (
+          {subscription?.tier !== 'plus' && (
             <button
               onClick={handleUpgrade}
               className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold py-3 rounded-full transition-all duration-200 flex items-center justify-center gap-2 text-sm"
@@ -753,12 +726,26 @@ export default function Account() {
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">Edit Caller IDs</h3>
-                <button
-                  onClick={() => setShowCallerIDEditor(false)}
-                  className="p-2 hover:bg-zinc-800 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-white" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      setIsSyncingCallerIds(true);
+                      await refreshCallerIds();
+                      setIsSyncingCallerIds(false);
+                    }}
+                    disabled={isSyncingCallerIds}
+                    className="p-2 hover:bg-zinc-800 rounded-full transition-colors disabled:opacity-50"
+                    title="Sync numbers from Luron"
+                  >
+                    {/* <RefreshCw className={`w-4 h-4 text-zinc-400 ${isSyncingCallerIds ? 'animate-spin' : ''}`} /> */}
+                  </button>
+                  <button
+                    onClick={() => setShowCallerIDEditor(false)}
+                    className="p-2 hover:bg-zinc-800 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3 mb-4">
@@ -772,12 +759,52 @@ export default function Account() {
                         <div className="text-xs text-zinc-500">{cid.phone_number || cid.number}</div>
                         <div className="text-xs text-zinc-500">{cid.location}</div>
                       </div>
+                      <button
+                        onClick={async () => {
+                          if (savedContactIds.has(cid.id)) return;
+                          try {
+                            const result = await saveToContacts(cid.name, cid.phone_number || cid.number);
+                            if (result?.saved) {
+                              setSavedContactIds(prev => {
+                                const next = new Set([...prev, cid.id]);
+                                localStorage.setItem('savedCallerContactIds', JSON.stringify([...next]));
+                                return next;
+                              });
+                            }
+                          } catch (err) {
+                            console.error('Save to contacts failed:', err);
+                          }
+                        }}
+                        disabled={savedContactIds.has(cid.id)}
+                        className={`flex items-center gap-1 px-2 py-1 border rounded-lg transition-colors ${
+                          savedContactIds.has(cid.id)
+                            ? 'bg-zinc-700/50 border-zinc-600 cursor-default'
+                            : 'bg-green-500/10 hover:bg-green-500/20 border-green-500/30'
+                        }`}
+                        title={savedContactIds.has(cid.id) ? 'Already saved' : 'Save to Contacts'}
+                      >
+                        <UserPlus className={`w-3.5 h-3.5 ${savedContactIds.has(cid.id) ? 'text-zinc-500' : 'text-green-400'}`} />
+                        <span className={`text-[10px] font-medium ${savedContactIds.has(cid.id) ? 'text-zinc-500' : 'text-green-400'}`}>
+                          {savedContactIds.has(cid.id) ? 'Saved' : 'Save'}
+                        </span>
+                      </button>
                     </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         value={cid.name}
-                        onChange={(e) => updateCallerIDName(cid.id, e.target.value)}
+                        onChange={(e) => {
+                          updateCallerIDName(cid.id, e.target.value);
+                          // Name changed — clear saved state so user can re-save with new name
+                          if (savedContactIds.has(cid.id)) {
+                            setSavedContactIds(prev => {
+                              const next = new Set([...prev]);
+                              next.delete(cid.id);
+                              localStorage.setItem('savedCallerContactIds', JSON.stringify([...next]));
+                              return next;
+                            });
+                          }
+                        }}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500/50"
                         placeholder="Caller Name"
                       />
@@ -789,7 +816,7 @@ export default function Account() {
 
               <div className="p-3 bg-zinc-800/50 rounded-xl">
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Customize the names of these preset caller IDs to make them easier to recognize.
+                  Rename any caller ID, then tap <span className="text-green-400 font-medium">Save</span> to add it directly to your iPhone contacts.
                 </p>
               </div>
             </motion.div>

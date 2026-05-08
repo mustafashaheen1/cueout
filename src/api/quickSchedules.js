@@ -17,20 +17,34 @@ export const getQuickSchedule = (scheduleId) =>
     supabase.from('quick_schedules').select('*').eq('id', scheduleId).single()
   );
 
-// Expand nested preset object to flat DB columns and strip local id
+// Expand nested preset object to flat DB columns.
+// Only includes columns that are safe to write — never sends auto-managed fields
+// like created_at, user_id, or id, which can cause Supabase to reject the request.
 const toDbRecord = (schedule) => {
-  const { id: _localId, preset, ...rest } = schedule;
-  return {
-    ...rest,
-    ...(preset ? {
-      persona_id:      preset.persona         || 'manager',
-      voice_id:        preset.voice           || 'emma',
-      contact_methods: preset.contactMethods  || ['call'],
-      context_note:    preset.note            || '',
-      time_preset:     preset.time            || '3min',
-      voice_category:  preset.voiceCategory   || 'realistic',
-    } : {})
-  };
+  const { preset } = schedule;
+  const record = {};
+
+  // Top-level metadata — included only when the caller provides them
+  if (schedule.name        !== undefined) record.name        = schedule.name;
+  if (schedule.icon        !== undefined) record.icon        = schedule.icon;
+  if (schedule.color       !== undefined) record.color       = schedule.color;
+  if (schedule.usage_count !== undefined) record.usage_count = schedule.usage_count;
+
+  // Preset-derived flat columns
+  if (preset) {
+    record.persona_id      = preset.persona        || 'manager';
+    record.voice_id        = preset.voice          || 'emma';
+    record.contact_methods = preset.contactMethods || ['call'];
+    record.context_note    = preset.note           || '';
+    // When time is 'custom', store the ISO date string directly in time_preset
+    // so it survives DB round-trips without needing an extra column.
+    record.time_preset     = (preset.time === 'custom' && preset.customDate)
+                               ? preset.customDate
+                               : (preset.time || '3min');
+    record.voice_category  = preset.voiceCategory  || 'realistic';
+  }
+
+  return record;
 };
 
 export const createQuickSchedule = (schedule) =>

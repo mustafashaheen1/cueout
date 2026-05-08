@@ -134,10 +134,11 @@ export default function History() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const navigate = useNavigate();
 
-  // Ensure tab bar is visible on this page
+  // Hide tab bar when edit modal is open; restore it otherwise and on unmount
   useEffect(() => {
-    setIsTabBarHidden(false);
-  }, [setIsTabBarHidden]);
+    setIsTabBarHidden(!!editingSchedule);
+    return () => setIsTabBarHidden(false);
+  }, [editingSchedule]);
 
   useEffect(() => {
     // Clear unread badge when entering history page
@@ -317,27 +318,29 @@ export default function History() {
           <div className="relative -mx-6 px-6">
             <div className="flex gap-4 overflow-x-auto pb-4 pt-2 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {quickSchedules.map((option) => (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  key={option.id}
-                  onClick={() => handleQuickCall(option)}
-                  className="relative flex-shrink-0 w-24 flex flex-col items-center gap-3 snap-start group"
-                >
-                  <div className={`relative w-16 h-16 rounded-2xl ${option.color} flex items-center justify-center text-3xl shadow-lg border border-red-500/30 group-hover:scale-105 transition-transform duration-300`}>
-                    <div className="absolute inset-0 bg-white/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {option.icon}
-
-                    <div 
-                      onClick={(e) => handleEditSchedule(e, option)}
-                      className="absolute -top-2 -right-2 w-7 h-7 bg-zinc-900 rounded-full border border-zinc-700 flex items-center justify-center transition-all shadow-xl hover:bg-zinc-800 hover:border-red-500/50 z-10"
-                    >
-                      <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                <div key={option.id} className="relative flex-shrink-0 w-24 snap-start group">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleQuickCall(option)}
+                    className="flex flex-col items-center gap-3 w-full"
+                  >
+                    <div className={`relative w-16 h-16 rounded-2xl ${option.color} flex items-center justify-center text-3xl shadow-lg border border-red-500/30 group-hover:scale-105 transition-transform duration-300`}>
+                      <div className="absolute inset-0 bg-white/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {option.icon}
                     </div>
-                  </div>
-                  <p className="text-xs font-medium text-zinc-400 text-center truncate w-full px-1 group-hover:text-white transition-colors">
-                    {option.name}
-                  </p>
-                </motion.button>
+                    <p className="text-xs font-medium text-zinc-400 text-center truncate w-full px-1 group-hover:text-white transition-colors">
+                      {option.name}
+                    </p>
+                  </motion.button>
+
+                  {/* Gear sits outside motion.button so its click never bubbles into handleQuickCall */}
+                  <button
+                    onClick={(e) => handleEditSchedule(e, option)}
+                    className="absolute top-0 right-2 w-7 h-7 bg-zinc-900 rounded-full border border-zinc-700 flex items-center justify-center transition-all shadow-xl hover:bg-zinc-800 hover:border-red-500/50 z-10"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                  </button>
+                </div>
               ))}
 
               {/* Add New Placeholder */}

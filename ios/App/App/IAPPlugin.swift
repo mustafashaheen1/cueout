@@ -11,6 +11,27 @@ public class IAPPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getActiveSubscription", returnType: CAPPluginReturnPromise),
     ]
 
+    // ─── Transaction Updates Listener ─────────────────────────────────────────
+    // StoreKit 2 requires a Task iterating Transaction.updates to be running at
+    // all times so renewals, interrupted purchases, and refunds are never missed.
+    private var transactionUpdatesTask: Task<Void, Never>?
+
+    override public func load() {
+        transactionUpdatesTask = Task(priority: .background) {
+            for await result in Transaction.updates {
+                if case .verified(let transaction) = result {
+                    // Finish the transaction so StoreKit stops delivering it.
+                    // syncIAPOnLaunch / getActiveSubscription handle DB sync.
+                    await transaction.finish()
+                }
+            }
+        }
+    }
+
+    deinit {
+        transactionUpdatesTask?.cancel()
+    }
+
     // ─── Purchase ─────────────────────────────────────────────────────────────
     @objc func purchaseProduct(_ call: CAPPluginCall) {
         guard let productId = call.getString("productId"), !productId.isEmpty else {

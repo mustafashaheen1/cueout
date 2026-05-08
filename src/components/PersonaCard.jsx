@@ -4,6 +4,9 @@ import { createPageUrl } from './utils';
 import { motion } from 'framer-motion';
 import { Settings } from 'lucide-react';
 
+const truncate = (str, max = 9) =>
+  str && str.length > max ? str.slice(0, max) + '…' : str;
+
 export default function PersonaCard({ persona, selected, onClick, compact = false }) {
   const navigate = useNavigate();
 
@@ -29,7 +32,7 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
           <div className={`w-14 h-14 mx-auto mb-2 rounded-full ${persona.color} flex items-center justify-center text-2xl`}>
             {persona.icon}
           </div>
-          <p className="text-[10px] font-semibold text-center text-white leading-tight">{persona.name}</p>
+          <p className="text-[10px] font-semibold text-center text-white leading-tight">{truncate(persona.name)}</p>
         </motion.div>
 
         {selected &&
@@ -59,7 +62,7 @@ export default function PersonaCard({ persona, selected, onClick, compact = fals
           {persona.icon}
         </div>
         <div className="flex-1 text-left">
-          <h3 className="font-bold text-base text-white mb-1">{persona.name}</h3>
+          <h3 className="font-bold text-base text-white mb-1">{truncate(persona.name)}</h3>
           <p className="text-xs text-zinc-400">Tap to select</p>
         </div>
         {selected &&

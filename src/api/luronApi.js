@@ -7,6 +7,19 @@ const BASE_URL = 'https://luron-api.onrender.com';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Normalise a raw caller ID string to E.164 (e.g. "+15551234567").
+ * Returns null for anything that isn't a real routable number so Luron
+ * falls back to its default instead of failing silently.
+ */
+function toE164CallerID(raw) {
+  if (!raw) return null;
+  // Strip all non-digit characters except a leading '+'
+  const stripped = raw.replace(/[^\d+]/g, '');
+  // Accept only proper E.164: + followed by 10–15 digits
+  return /^\+\d{10,15}$/.test(stripped) ? stripped : null;
+}
+
 function calculateScheduleTime(selectedTime, customDate = null) {
   const now = new Date();
   let scheduled;
@@ -142,7 +155,7 @@ export async function scheduleCall(params) {
       advanced_settings: {
         tone:           personaConfig.tone     || 'casual',
         voice:          selectedVoice,
-        caller_id:      selectedCallerID?.phone_number || selectedCallerID?.number || null,
+        caller_id:      toE164CallerID(selectedCallerID?.phone_number || selectedCallerID?.number),
         duration:       personaConfig.duration   || 30,
         custom_phrases: Array.isArray(personaConfig.customPhrases)
                           ? personaConfig.customPhrases.join(', ')
@@ -241,6 +254,20 @@ export function getUserId() {
     localStorage.setItem(KEY, id);
   }
   return id;
+}
+
+// ─── Caller ID Pool ───────────────────────────────────────────────────────────
+
+/**
+ * Fetch the 5 pool numbers assigned to this user from the Luron API.
+ * Returns an array of E.164 strings from default_pool, e.g. ["+15105183017", ...]
+ */
+export async function fetchCallerIdNumbers(userId) {
+  if (!userId) return [];
+  const response = await fetch(`${BASE_URL}/numbers?user_id=${encodeURIComponent(userId)}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch caller ID pool');
+  return Array.isArray(data.default_pool) ? data.default_pool : [];
 }
 
 // Dev helper — test call details from Safari console

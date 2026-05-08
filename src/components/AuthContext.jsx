@@ -117,8 +117,14 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
+      // Clear all user-specific cache synchronously BEFORE the async signOut call.
+      // This guarantees the next user never sees stale data even if Supabase events
+      // are delayed or AppContext is briefly unmounted.
+      ['subscription', 'upcomingCalls', 'callHistory', 'quickSchedules', 'callerIDs_v3'].forEach(k =>
+        localStorage.removeItem(k)
+      );
       await authSignOut();
-setUser(null);
+      setUser(null);
       setSession(null);
       setIsAuthenticated(false);
     } catch (error) {

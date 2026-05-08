@@ -28,7 +28,7 @@ export default function CallHistoryItem({ call, index, onClick }) {
         </div>
 
         <div className="flex-1 min-w-0 text-left">
-          <h3 className="font-semibold text-white mb-0.5 capitalize truncate">{call.persona}</h3>
+          <h3 className="font-semibold text-white mb-0.5 capitalize truncate">{call.personaName || call.persona}</h3>
           <p className="text-sm text-zinc-400 truncate">{call.scheduledTime}</p>
         </div>
 

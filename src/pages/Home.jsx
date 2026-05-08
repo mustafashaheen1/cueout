@@ -15,7 +15,7 @@ import UpcomingCallBanner from '../components/UpcomingCallBanner';
 import PullToRefresh from '../components/PullToRefresh';
 import ContactMethodSelector from '../components/ContactMethodSelector';
 import CallerIDSelector from '../components/CallerIDSelector';
-import { scheduleCall as scheduleCallAPI, getUserId } from '../api/luronApi';
+import { scheduleCall as scheduleCallAPI } from '../api/luronApi';
 
 
 // Personas are now managed in PersonaContext
@@ -64,6 +64,7 @@ export default function Home() {
   const [scheduleError, setScheduleError] = useState(null);
   const [scheduleErrorIsLimit, setScheduleErrorIsLimit] = useState(false);
   const [showConfirmSchedule, setShowConfirmSchedule] = useState(false);
+  const [showExpiredTimeModal, setShowExpiredTimeModal] = useState(false);
 
   const tips = [
     "Customize caller names in Account settings",
@@ -162,6 +163,10 @@ export default function Home() {
       setSelectedCallerID(setup.callerId || null);
       setSelectedTime(setup.time || '3min');
       if (setup.voiceCategory) setVoiceCategory(setup.voiceCategory);
+      // Restore custom date/time if the preset uses a specific scheduled time
+      if (setup.time === 'custom' && setup.customDate) {
+        setCustomDate(setup.customDate);
+      }
 
       window.history.replaceState({}, document.title);
     }
@@ -228,8 +233,13 @@ export default function Home() {
     if (selectedTime === '3min') durationMs = 3 * 60 * 1000;
     else if (selectedTime === '5min') durationMs = 5 * 60 * 1000;
     else if (selectedTime === 'now') durationMs = 5000;
-    else if (selectedTime === 'custom' && customDate) {
-      durationMs = Math.max(5000, new Date(customDate).getTime() - Date.now());
+    else if (selectedTime === 'custom') {
+      if (!customDate || new Date(customDate).getTime() <= Date.now()) {
+        // Custom date is missing or in the past — prompt user to pick a new time
+        setShowExpiredTimeModal(true);
+        return;
+      }
+      durationMs = new Date(customDate).getTime() - Date.now();
     }
 
     if (editingCallId) {
@@ -355,7 +365,7 @@ export default function Home() {
 
         // Fire one Luron API call per selected contact method (in parallel)
         const baseParams = {
-          userId:         getUserId(),
+          userId:         user?.id,
           selectedTime,
           customDate:     selectedTime === 'custom' && customDate ? new Date(customDate) : null,
           selectedPersona: luronPersonaType,
@@ -455,8 +465,8 @@ export default function Home() {
   // Format a Date to the value required by <input type="datetime-local">
   const toDatetimeLocal = (date) => {
     const d = new Date(date);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   const handleTimeSelect = (timeId) => {
@@ -514,7 +524,7 @@ export default function Home() {
               </div>
             ) : (
             <button
-              onClick={() => navigate(createPageUrl(subscription?.tier === 'plus' ? 'Account' : 'Paywall'))}
+              onClick={() => navigate(createPageUrl('Paywall'))}
               className={`flex items-center gap-2 bg-zinc-900/50 backdrop-blur-md border rounded-full py-1.5 pl-4 pr-1.5 transition-all group ${
                 subscription?.tier === 'plus'
                   ? 'border-red-500/40 hover:border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
@@ -1002,6 +1012,69 @@ export default function Home() {
           }
         </AnimatePresence>
       </div>
+
+      {/* Expired custom time modal */}
+      <AnimatePresence>
+        {showExpiredTimeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowExpiredTimeModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[400px] bg-zinc-900 border border-zinc-800 rounded-3xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center flex-shrink-0 text-xl">
+                  ⏰
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Scheduled time has passed</h3>
+                  <p className="text-xs text-zinc-400">Please select a future date and time</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-zinc-400 mb-5 leading-relaxed">
+                The date and time saved in this preset is in the past. Pick a new time or switch to a quick option to schedule your escape call.
+              </p>
+
+              <div className="space-y-3">
+                <motion.button
+                  whileTap={{ scale: 0.97, opacity: 0.85 }}
+                  onClick={() => {
+                    setShowExpiredTimeModal(false);
+                    if (!customDate) setCustomDate(new Date(Date.now() + 10 * 60 * 1000).toISOString());
+                    setCustomTimeError('');
+                    setShowCustomTime(true);
+                  }}
+                  className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-4 rounded-full shadow-lg shadow-red-500/30 flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4" />
+                  Pick New Time
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setSelectedTime('3min');
+                    setCustomDate(null);
+                    setShowExpiredTimeModal(false);
+                  }}
+                  className="w-full bg-zinc-800 text-zinc-300 font-semibold py-4 rounded-full"
+                >
+                  Use 3 Minutes Instead
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Confirm schedule when calls already pending */}
       <AnimatePresence>

@@ -48,9 +48,18 @@ export default function UpcomingCallBanner({ call, onCancel, onEdit, onComplete 
   }, [call.due_timestamp, call.dueTimestamp, isCompleted]);
 
   const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const days  = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins  = Math.floor((seconds % 3600) / 60);
+    const secs  = seconds % 60;
+
+    if (days > 0) {
+      return `${days}d ${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+    }
+    return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
   const getActionLabel = () => {
